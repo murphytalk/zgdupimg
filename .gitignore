@@ -1,0 +1,5 @@
+.o
+.exe
+.zig-cache/
+zig-out/
+ls 
