@@ -1,8 +1,30 @@
 const std = @import("std");
+const clap = @import("clap");
+const io = std.io;
+const root = @import("root.zig");
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help             Display this help and exit.
+        \\-d, --dir <str>        Directory to scan images
+        \\-b, --bin <str>        Directory to save duplicated images
+    );
+    var diag = clap.Diagnostic{};
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
+        .diagnostic = &diag,
+        .allocator = gpa.allocator(),
+    }) catch |err| {
+        // Report useful error and exit
+        diag.report(io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0)
+        return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
 
     // stdout is for the actual output of your application, for example if you
     // are implementing gzip, then only the compressed bytes should be sent to
@@ -11,14 +33,16 @@ pub fn main() !void {
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
+    if (res.args.dir) |img_dir| {
+        try stdout.print("Scan images in {s}", .{img_dir});
+        if (res.args.bin) |bin_dir| {
+            try stdout.print("Will save duplicated images in {s}", .{bin_dir});
+            try root.doWork(img_dir, bin_dir);
+        } else {
+            try stdout.print("-b not specified", .{});
+        }
+    } else {
+        try stdout.print("-d not specified", .{});
+    }
     try bw.flush(); // don't forget to flush!
-}
-
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
 }
