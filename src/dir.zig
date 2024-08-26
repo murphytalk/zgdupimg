@@ -1,38 +1,40 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 pub const MyDir = struct {
     ptr: *anyopaque,
-    openFn: *const fn (ptr: *anyopaque) anyerror!std.fs.Dir.Walker,
-    nextFn: *const fn (ptr: *anyopaque, walker: std.fs.Dir.Walker) anyerror!?[]const u8,
+    openFn: *const fn (ptr: *anyopaque) anyerror!void,
+    nextFn: *const fn (ptr: *anyopaque) anyerror!?[]const u8,
 
-    pub fn open(self: *const MyDir) anyerror!std.fs.Dir.Walker {
+    pub fn open(self: *const MyDir) anyerror!void {
         return try self.openFn(self.ptr);
     }
 
-    pub fn next(self: *const MyDir, walker: std.fs.Dir.Walker) anyerror!?[]const u8 {
-        return try self.nextFn(self.ptr, walker);
+    pub fn next(self: *const MyDir) anyerror!?[]const u8 {
+        return try self.nextFn(self.ptr);
     }
 };
 
 pub const RealDir = struct {
     alloc: std.mem.Allocator,
+    walker: ?std.fs.Dir.Walker = null,
     root_dir: []const u8,
-    pub fn open(ptr: *anyopaque) !std.fs.Dir.Walker {
+    pub fn open(ptr: *anyopaque) !void {
         const self: *RealDir = @ptrCast(@alignCast(ptr));
         var dir = try std.fs.openDirAbsolute(self.root_dir, .{ .iterate = true });
-        return try dir.walk(self.alloc);
+        self.walker = try dir.walk(self.alloc);
     }
-    pub fn next(ptr: *anyopaque, walker: std.fs.Dir.Walker) !?[]const u8 {
+    pub fn next(ptr: *anyopaque) !?[]const u8 {
         const self: *RealDir = @ptrCast(@alignCast(ptr));
-        var w = @constCast(&walker);
-        if (try w.next()) |entry| {
-            const dirs = [_][]const u8{ self.root_dir, entry.path, entry.basename };
-            return try std.fs.path.join(self.alloc, &dirs);
-        } else {
-            w.deinit();
-            return null;
-        }
+        if (self.walker) |wk| {
+            var w = @constCast(&wk);
+            if (try w.next()) |entry| {
+                const dirs = [_][]const u8{ self.root_dir, entry.path, entry.basename };
+                return try std.fs.path.join(self.alloc, &dirs);
+            } else {
+                w.deinit();
+                return null;
+            }
+        } else return null;
     }
     pub fn myDir(self: *RealDir) MyDir {
         return .{ .ptr = self, .openFn = open, .nextFn = next };

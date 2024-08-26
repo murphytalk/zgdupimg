@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const ArrayList = std.ArrayList;
 const testing = std.testing;
 const myDir = @import("dir.zig");
@@ -14,7 +15,9 @@ pub fn doWork(img_dir: []const u8, bin_dir: []const u8) !void {
     const arena_allocator = arena.allocator();
 
     _ = bin_dir;
-    var imageFiles = try walkImgDir(arena_allocator, img_dir);
+    var realDir = myDir.RealDir{ .alloc = arena_allocator, .root_dir = img_dir };
+    const dir = myDir.RealDir.myDir(&realDir);
+    var imageFiles = try walkImgDir(arena_allocator, dir);
     defer imageFiles.deinit();
 
     for (imageFiles.items) |f| {
@@ -30,15 +33,21 @@ pub const ImgFile = struct {
     }
 };
 
-pub fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8) !ArrayList(ImgFile) {
+pub fn walkImgDir(allocator: std.mem.Allocator, dir: myDir.MyDir) !ArrayList(ImgFile) {
     var files = ArrayList(ImgFile).init(allocator);
-    var realDir = myDir.RealDir{ .alloc = allocator, .root_dir = img_dir };
-    var dir = myDir.RealDir.myDir(&realDir);
 
-    const walker = try dir.open();
-    while (try dir.next(walker)) |file_path| {
+    try dir.open();
+    while (try dir.next()) |file_path| {
         const imgFile = ImgFile.init(file_path);
         try files.append(imgFile);
     }
     return files;
 }
+
+//const MockedDir = if(builtin.is_test) struct{
+//    idx: u8 = 0,
+//    mockedPath: [_][]const u8 = {"/stuff/file1", "/stuff/should-be-ignored/file3", "/stuff/file2"},
+//}
+//else struct{};
+//
+test "walkDir" {}
