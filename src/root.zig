@@ -1,6 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const testing = std.testing;
+const myDir = @import("dir.zig");
 
 pub fn doWork(img_dir: []const u8, bin_dir: []const u8) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -19,6 +20,7 @@ pub fn doWork(img_dir: []const u8, bin_dir: []const u8) !void {
     for (imageFiles.items) |f| {
         std.debug.print("File path: {s}\n", .{f.fullPath});
     }
+    std.debug.print("Total {d}\n", .{imageFiles.items.len});
 }
 
 pub const ImgFile = struct {
@@ -30,13 +32,12 @@ pub const ImgFile = struct {
 
 pub fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8) !ArrayList(ImgFile) {
     var files = ArrayList(ImgFile).init(allocator);
-    var dir = try std.fs.openDirAbsolute(img_dir, .{ .iterate = true });
+    var realDir = myDir.RealDir{ .alloc = allocator, .root_dir = img_dir };
+    var dir = myDir.RealDir.myDir(&realDir);
 
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-    while (try walker.next()) |entry| {
-        const dirs = [_][]const u8{ img_dir, entry.path, entry.basename };
-        const imgFile = ImgFile.init(try std.fs.path.join(allocator, &dirs));
+    const walker = try dir.open();
+    while (try dir.next(walker)) |file_path| {
+        const imgFile = ImgFile.init(file_path);
         try files.append(imgFile);
     }
     return files;
