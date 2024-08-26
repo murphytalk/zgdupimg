@@ -13,22 +13,6 @@ pub const MyDir = struct {
     pub fn next(self: *const MyDir, walker: std.fs.Dir.Walker) anyerror!?[]const u8 {
         return try self.nextFn(self.ptr, walker);
     }
-
-    //    pub fn init(
-    //        pointer: anytype,
-    //        comptime openFunc: fn (@TypeOf(pointer)) void,
-    //        comptime nextFunc: fn (@TypeOf(pointer)) ?[]const u8,
-    //    ) MyDir {
-    //        return .{ .ptr = pointer, .openFn = struct {
-    //            fn open(ptr: *anyopaque) void {
-    //                return openFunc(@ptrCast(ptr));
-    //            }
-    //        }.open, .nextFn = struct {
-    //            fn next(ptr: *anyopaque) ?[]const u8 {
-    //                return nextFunc(@ptrCast(ptr));
-    //            }
-    //        } };
-    //    }
 };
 
 pub const RealDir = struct {
