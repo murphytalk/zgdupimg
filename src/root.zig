@@ -44,10 +44,26 @@ pub fn walkImgDir(allocator: std.mem.Allocator, dir: myDir.MyDir) !ArrayList(Img
     return files;
 }
 
-//const MockedDir = if(builtin.is_test) struct{
-//    idx: u8 = 0,
-//    mockedPath: [_][]const u8 = {"/stuff/file1", "/stuff/should-be-ignored/file3", "/stuff/file2"},
-//}
-//else struct{};
-//
-test "walkDir" {}
+const MockedDir = if (builtin.is_test) struct {
+    idx: u8 = 0,
+    mockedPath: [3][]const u8 = .{ "/stuff/file1", "/stuff/should-be-ignored/file3", "/stuff/file2" },
+    pub fn open(_: *anyopaque) !void {}
+    pub fn next(ptr: *anyopaque) !?[]const u8 {
+        const self: *MockedDir = @ptrCast(@alignCast(ptr));
+        if (self.idx < 3) {
+            const p = self.mockedPath[self.idx];
+            self.idx += 1;
+            return p;
+        } else return null;
+    }
+    pub fn dir(self: *MockedDir) myDir.MyDir {
+        return .{ .ptr = self, .openFn = open, .nextFn = next };
+    }
+} else struct {};
+
+test "walkDir" {
+    var mockedDir = MockedDir{};
+    const dir = MockedDir.dir(&mockedDir);
+    const l = try walkImgDir(testing.allocator, dir);
+    try testing.expect(l.items.len == 3);
+}
