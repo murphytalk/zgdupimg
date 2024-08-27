@@ -53,6 +53,7 @@ const MockedDir = if (builtin.is_test) struct {
 } else struct {};
 
 test "walkDir" {
+    const ignoredPath = "should-be-ignored";
     const mockedPath = [_][]const u8{ "/stuff/file1", "/stuff/should-be-ignored/file3", "/stuff/file2" };
     var mockedDir = MockedDir{ .mockedPath = mockedPath };
     const dir = MockedDir.dir(&mockedDir);
@@ -60,7 +61,7 @@ test "walkDir" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const l = try walkImgDir(arena.allocator(), dir);
+    const l = try walkImgDir(arena.allocator(), dir, ignoredPath);
     try testing.expect(l.items.len == 3);
     for (0..3) |i| {
         try testing.expect(std.mem.eql(u8, mockedPath[i], l.items[i].fullPath));
