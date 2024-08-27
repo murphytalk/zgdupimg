@@ -4,20 +4,11 @@ const ArrayList = std.ArrayList;
 const testing = std.testing;
 const myDir = @import("dir.zig");
 
-pub fn doWork(img_dir: []const u8, bin_dir: []const u8) !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    const arena_allocator = arena.allocator();
-
+pub fn doWork(allocator: std.mem.Allocator, img_dir: []const u8, bin_dir: []const u8) !void {
     _ = bin_dir;
-    var realDir = myDir.RealDir{ .alloc = arena_allocator, .root_dir = img_dir };
+    var realDir = myDir.RealDir{ .alloc = allocator, .root_dir = img_dir };
     const dir = myDir.RealDir.myDir(&realDir);
-    var imageFiles = try walkImgDir(arena_allocator, dir);
+    var imageFiles = try walkImgDir(allocator, dir);
     defer imageFiles.deinit();
 
     for (imageFiles.items) |f| {

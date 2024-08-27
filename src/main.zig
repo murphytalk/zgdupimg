@@ -4,8 +4,10 @@ const io = std.io;
 const root = @import("root.zig");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
 
     const params = comptime clap.parseParamsComptime(
         \\-h, --help             Display this help and exit.
@@ -15,7 +17,7 @@ pub fn main() !void {
     var diag = clap.Diagnostic{};
     var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
-        .allocator = gpa.allocator(),
+        .allocator = allocator,
     }) catch |err| {
         // Report useful error and exit
         diag.report(io.getStdErr().writer(), err) catch {};
@@ -37,7 +39,7 @@ pub fn main() !void {
         try stdout.print("Scan images in {s}", .{img_dir});
         if (res.args.bin) |bin_dir| {
             try stdout.print("Will save duplicated images in {s}", .{bin_dir});
-            try root.doWork(img_dir, bin_dir);
+            try root.doWork(allocator, img_dir, bin_dir);
         } else {
             try stdout.print("-b not specified", .{});
         }
