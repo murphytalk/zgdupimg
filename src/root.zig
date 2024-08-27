@@ -12,9 +12,9 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
     defer imageFiles.deinit();
 
     for (imageFiles.items) |f| {
-        std.debug.print("File path: {s}\n", .{f.fullPath});
+        std.log.info("File path: {s}", .{f.fullPath});
     }
-    std.debug.print("Total {d}\n", .{imageFiles.items.len});
+    std.log.info("Total {d}", .{imageFiles.items.len});
 }
 
 pub const ImgFile = struct {

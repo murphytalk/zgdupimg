@@ -29,25 +29,17 @@ pub fn main() !void {
     if (res.args.help != 0)
         return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-
     const ignoreDir: []const u8 = res.args.ignorePath orelse "@eaDir";
 
     if (res.args.dir) |img_dir| {
-        try stdout.print("Scan images in {s}, ignoring dir: {s}\n", .{ img_dir, ignoreDir });
+        std.log.info("Scan images in {s}, ignoring dir: {s}", .{ img_dir, ignoreDir });
         if (res.args.bin) |bin_dir| {
-            try stdout.print("Will save duplicated images in {s}\n", .{bin_dir});
+            std.log.info("Will save duplicated images in {s}", .{bin_dir});
             try root.doWork(allocator, ignoreDir, img_dir, bin_dir);
         } else {
-            try stdout.print("-b not specified", .{});
+            std.log.info("-b not specified", .{});
         }
     } else {
-        try stdout.print("-d not specified", .{});
+        std.log.info("-d not specified", .{});
     }
-    try bw.flush(); // don't forget to flush!
 }
