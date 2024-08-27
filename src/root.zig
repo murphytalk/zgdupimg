@@ -4,11 +4,11 @@ const ArrayList = std.ArrayList;
 const testing = std.testing;
 const myDir = @import("dir.zig");
 
-pub fn doWork(allocator: std.mem.Allocator, img_dir: []const u8, bin_dir: []const u8) !void {
+pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
     _ = bin_dir;
     var realDir = myDir.RealDir{ .alloc = allocator, .root_dir = img_dir };
     const dir = myDir.RealDir.myDir(&realDir);
-    var imageFiles = try walkImgDir(allocator, dir);
+    var imageFiles = try walkImgDir(allocator, dir, ignored_dir);
     defer imageFiles.deinit();
 
     for (imageFiles.items) |f| {
@@ -24,9 +24,9 @@ pub const ImgFile = struct {
     }
 };
 
-pub fn walkImgDir(allocator: std.mem.Allocator, dir: myDir.MyDir) !ArrayList(ImgFile) {
+pub fn walkImgDir(allocator: std.mem.Allocator, dir: myDir.MyDir, ignored_dir: []const u8) !ArrayList(ImgFile) {
     var files = ArrayList(ImgFile).init(allocator);
-
+    _ = ignored_dir;
     try dir.open();
     while (try dir.next()) |file_path| {
         const imgFile = ImgFile.init(file_path);

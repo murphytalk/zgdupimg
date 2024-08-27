@@ -10,9 +10,10 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     const params = comptime clap.parseParamsComptime(
-        \\-h, --help             Display this help and exit.
-        \\-d, --dir <str>        Directory to scan images
-        \\-b, --bin <str>        Directory to save duplicated images
+        \\-h, --help              Display this help and exit.
+        \\-d, --dir <str>         Directory to scan images
+        \\-b, --bin <str>         Directory to save duplicated images
+        \\-i, --ignorePath <str>  Directory to ignore when searching images
     );
     var diag = clap.Diagnostic{};
     var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
@@ -35,11 +36,13 @@ pub fn main() !void {
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
+    const ignoreDir: []const u8 = res.args.ignorePath orelse "@eaDir";
+
     if (res.args.dir) |img_dir| {
-        try stdout.print("Scan images in {s}", .{img_dir});
+        try stdout.print("Scan images in {s}, ignoring dir: {s}\n", .{ img_dir, ignoreDir });
         if (res.args.bin) |bin_dir| {
-            try stdout.print("Will save duplicated images in {s}", .{bin_dir});
-            try root.doWork(allocator, img_dir, bin_dir);
+            try stdout.print("Will save duplicated images in {s}\n", .{bin_dir});
+            try root.doWork(allocator, ignoreDir, img_dir, bin_dir);
         } else {
             try stdout.print("-b not specified", .{});
         }
