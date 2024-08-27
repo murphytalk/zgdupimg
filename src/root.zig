@@ -64,6 +64,10 @@ const MockedDir = if (builtin.is_test) struct {
 test "walkDir" {
     var mockedDir = MockedDir{};
     const dir = MockedDir.dir(&mockedDir);
-    const l = try walkImgDir(testing.allocator, dir);
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const l = try walkImgDir(arena.allocator(), dir);
     try testing.expect(l.items.len == 3);
 }
