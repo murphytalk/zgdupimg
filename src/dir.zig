@@ -2,41 +2,54 @@ const std = @import("std");
 
 pub const MyDir = struct {
     ptr: *anyopaque,
-    openFn: *const fn (ptr: *anyopaque) anyerror!void,
-    nextFn: *const fn (ptr: *anyopaque) anyerror!?[]const u8,
+    ifDirShouldBeIgnoredFn: *const fn (ptr: *anyopaque, dirName: []const u8) bool,
+    addFn: *const fn (ptr: *anyopaque, parent_path: []const u8, name: []const u8) void,
 
-    pub fn open(self: *const MyDir) anyerror!void {
-        return try self.openFn(self.ptr);
+    pub fn ifDirShouldBeIgnored(self: *const MyDir, dirName: []const u8) bool {
+        return self.ifDirShouldBeIgnoredFn(dirName);
     }
-
-    pub fn next(self: *const MyDir) anyerror!?[]const u8 {
-        return try self.nextFn(self.ptr);
+    pub fn add(self: *const MyDir, parent_path: []const u8, name: []const u8) void {
+        self.addFn(parent_path, name);
+    }
+    pub fn chDir(self: *const MyDir, subDirName: []const u8) void {
+        self.chDirFn(subDirName);
     }
 };
 
-pub const RealDir = struct {
-    alloc: std.mem.Allocator,
-    walker: ?std.fs.Dir.Walker = null,
-    root_dir: []const u8,
-    pub fn open(ptr: *anyopaque) !void {
-        const self: *RealDir = @ptrCast(@alignCast(ptr));
-        var dir = try std.fs.openDirAbsolute(self.root_dir, .{ .iterate = true });
-        self.walker = try dir.walk(self.alloc);
-    }
-    pub fn next(ptr: *anyopaque) !?[]const u8 {
-        const self: *RealDir = @ptrCast(@alignCast(ptr));
-        if (self.walker) |wk| {
-            var w = @constCast(&wk);
-            if (try w.next()) |entry| {
-                const dirs = [_][]const u8{ self.root_dir, entry.path, entry.basename };
-                return try std.fs.path.join(self.alloc, &dirs);
-            } else {
-                w.deinit();
-                return null;
+pub fn walkDir(root: []const u8, myDir: MyDir) void {
+    var buffer: [1024]u8 = undefined;
+    const alloc = std.heap.FixedBufferAllocator.init(&buffer).allocator();
+    const dir = std.fs.openDirAbsolute(root, .{ .iterate = true }) catch |err| {
+        std.log.err("Error while iterating dir: {s}", .{@errorName(err)});
+        return;
+    };
+    myDir.chDir(root);
+    doWalkDir(alloc, myDir, root, dir);
+    dir.close();
+}
+
+fn doWalkDir(alloc: std.mem.Allocator, dir: MyDir, parent_path: []const u8, parentDir: std.fs.Dir) void {
+    var it = parentDir.iterate();
+    while (it.next()) |entry| {
+        if (entry) |e| {
+            switch (e.kind) {
+                .directory => {
+                    if (dir.ifDirShouldBeIgnored(e.name)) {
+                        const dirs = [_][]const u8{ parent_path, e.name };
+                        const path = std.fs.path.join(alloc, &dirs);
+                        const p = parentDir.openDir(e.name, .{ .iterate = true });
+                        doWalkDir(alloc, path, dir, p);
+                        alloc.free(path);
+                        p.close();
+                    }
+                },
+                .file => {
+                    dir.add(parent_path, e.name);
+                },
+                else => {},
             }
-        } else return null;
+        }
+    } else |err| {
+        std.log.err("Error while iterating dir: {s}", .{@errorName(err)});
     }
-    pub fn myDir(self: *RealDir) MyDir {
-        return .{ .ptr = self, .openFn = open, .nextFn = next };
-    }
-};
+}
