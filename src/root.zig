@@ -22,30 +22,30 @@ const ImgFile = struct {
     }
 };
 
-pub const RealDir = struct {
+const DirWalkerImpl = struct {
     alloc: std.mem.Allocator,
     ignoredDir: []const u8,
     files: ArrayList(ImgFile),
 
     pub fn ifDirShouldBeIgnored(ptr: *anyopaque, dirName: []const u8) bool {
-        const self: *RealDir = @ptrCast(@alignCast(ptr));
+        const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
         return std.mem.eql(u8, self.ignoredDir, dirName);
     }
     pub fn add(ptr: *anyopaque, parent_path: []const u8, name: []const u8) void {
-        const self: *RealDir = @ptrCast(@alignCast(ptr));
+        const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
         const dirs = [_][]const u8{ parent_path, name };
         const path = std.fs.path.join(self.alloc, &dirs);
         const imgFile = ImgFile.init(path);
         self.files.append(imgFile);
     }
-    pub fn init(self: *RealDir) myDir.MyDir {
+    pub fn init(self: *DirWalkerImpl) myDir.DirWalker {
         return .{ .ptr = self, .addFn = add, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored };
     }
 };
 
 fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8, ignored_dir: []const u8) !ArrayList(ImgFile) {
     const files = ArrayList(ImgFile).init(allocator);
-    const dir: RealDir = .{ .alloc = allocator, .ignoredDir = ignored_dir, .files = files };
+    const dir: DirWalkerImpl = .{ .alloc = allocator, .ignoredDir = ignored_dir, .files = files };
     myDir.walkDir(img_dir, dir);
     return files;
 }

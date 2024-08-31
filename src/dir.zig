@@ -5,7 +5,10 @@ pub const DirWalker = struct {
     ptr: *anyopaque,
     ifDirShouldBeIgnoredFn: *const fn (ptr: *anyopaque, dirName: []const u8) bool,
     addFn: *const fn (ptr: *anyopaque, parent_path: []const u8, name: []const u8) void,
-
+    pub fn joinPath(alloc: std.mem.Allocator, parent_path: []const u8, name: []const u8) anyerror![]u8 {
+        const dirs = [_][]const u8{ parent_path, name };
+        return try std.fs.path.join(alloc, &dirs);
+    }
     pub fn ifDirShouldBeIgnored(self: *const DirWalker, dirName: []const u8) bool {
         return self.ifDirShouldBeIgnoredFn(self.ptr, dirName);
     }
@@ -28,8 +31,7 @@ const MockedDirWalker = if (builtin.is_test) struct {
     }
     pub fn add(ptr: *anyopaque, parent_path: []const u8, name: []const u8) void {
         var self: *MockedDirWalker = @ptrCast(@alignCast(ptr));
-        const dirs = [_][]const u8{ parent_path, name };
-        const path = std.fs.path.join(self.alloc, &dirs) catch |err| {
+        const path = DirWalker.joinPath(self.alloc, parent_path, name) catch |err| {
             std.debug.print("failed to join path:{s}", .{@errorName(err)});
             return;
         };
