@@ -32,6 +32,7 @@ pub fn main() !void {
     const ignoreDir: []const u8 = res.args.ignorePath orelse "@eaDir";
 
     if (res.args.dir) |img_dir| {
+        std.log.debug("program started", .{});
         std.log.info("Scan images in {s}, ignoring dir: {s}", .{ img_dir, ignoreDir });
         if (res.args.bin) |bin_dir| {
             std.log.info("Will save duplicated images in {s}", .{bin_dir});

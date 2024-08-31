@@ -79,18 +79,18 @@ const OpenDir = if (builtin.is_test) struct {
         return .{};
     }
 } else struct {
-    dir: std.fs.Dir,
-    pub fn openAbs(self: *OpenDir, path: []const u8) !void {
-        self.dir = std.fs.openDirAbsolute(path, .{ .iterate = true });
+    dir: std.fs.Dir = undefined,
+    pub fn openAbs(self: *OpenDir, path: []const u8) anyerror!void {
+        self.dir = try std.fs.openDirAbsolute(path, .{ .iterate = true });
     }
-    pub fn open(self: *OpenDir, parentDir: std.fs.Dir, path: []const u8) void {
-        self.dir = parentDir.openDir(path, .{ .iterate = true });
+    pub fn open(self: *OpenDir, path: []const u8) anyerror!void {
+        self.dir = try self.dir.openDir(path, .{ .iterate = true });
     }
     pub fn close(self: *OpenDir) void {
         self.dir.close();
     }
-    pub fn iterator(self: *OpenDir) std.fs.Dir.Iterator {
-        return self.dir.iterator();
+    pub fn iterate(self: *const OpenDir) std.fs.Dir.Iterator {
+        return self.dir.iterate();
     }
 };
 
@@ -100,18 +100,27 @@ fn doWalkDir(alloc: std.mem.Allocator, walker: DirWalker, parent_path: []const u
         if (entry) |e| {
             switch (e.kind) {
                 .directory => {
+                    //std.log.debug("found dir {s}", .{e.name});
                     const doNotIgnore = if (builtin.is_test) false else !walker.ifDirShouldBeIgnored(e.name);
                     if (doNotIgnore) {
                         const dirs = [_][]const u8{ parent_path, e.name };
-                        const path = std.fs.path.join(alloc, &dirs);
+                        const path = std.fs.path.join(alloc, &dirs) catch |err| {
+                            std.log.err("failed to join dir {s} with {s}:{s}", .{ parent_path, e.name, @errorName(err) });
+                            return;
+                        };
                         var dir: OpenDir = .{};
-                        dir.open();
-                        doWalkDir(alloc, walker, path, parentDir);
+                        dir.open(path) catch |err| {
+                            std.log.err("failed to open dir {s}: {s}", .{ path, @errorName(err) });
+                            alloc.free(path);
+                            return;
+                        };
+                        doWalkDir(alloc, walker, path, dir);
                         alloc.free(path);
                         dir.close();
                     }
                 },
                 .file => {
+                    //std.log.debug("found file {s}", .{e.name});
                     walker.add(parent_path, e.name);
                 },
                 else => {},
