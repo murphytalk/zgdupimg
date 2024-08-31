@@ -50,6 +50,10 @@ fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8, ignored_dir: []
     return files;
 }
 
+test {
+    _ = @import("dir.zig");
+}
+
 //const MockedDir = if (builtin.is_test) struct {
 //    idx: u8 = 0,
 //    mockedPath: [3][]const u8,
