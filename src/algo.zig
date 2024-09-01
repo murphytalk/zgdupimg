@@ -20,7 +20,16 @@ const Reader = if (builtin.is_test) struct {
         const rdr = self.file.reader();
         return try rdr.read(&buf);
     }
+    pub fn deinit(self: Reader) !void {
+        self.file.close();
+    }
 };
+
+pub fn calcFileHash(filePath: []const u8) ![Sha256.digest_length]u8 {
+    const reader: Reader = .{ .file = std.fs.openFileAbsolute(filePath, .{ .mode = .read_only }) };
+    defer reader.deinit();
+    return sha256_digest(4096, &reader);
+}
 
 fn sha256_digest(comptime BUF_SIZE: u8, reader: *Reader) ![Sha256.digest_length]u8 {
     var sha256 = Sha256.init(.{});
@@ -48,4 +57,58 @@ test "test_sha256" {
     const r2 = try sha256_digest(100, &reader2);
 
     try std.testing.expect(!std.mem.eql(u8, &r1, &r2));
+}
+
+fn getExtension(filename: []const u8) ![]const u8 {
+    if (std.mem.indexOfScalar(u8, filename, '.')) |last_dot_index| {
+        return filename[(last_dot_index + 1)..];
+    }
+    // No extension found
+    return "";
+}
+
+const caseAsciiDiff: u8 = 'a' - 'A';
+fn charsEqualIgnoreCase(a: u8, b: u8) bool {
+    return normalizeChar(a) == normalizeChar(b);
+}
+
+// Normalize character to uppercase
+fn normalizeChar(c: u8) u8 {
+    if (c >= 'a' and c <= 'z') {
+        return c - caseAsciiDiff;
+    } else {
+        return c;
+    }
+}
+
+pub fn checkFileExtName(fileName: []const u8, expectedExt: []const u8) bool {
+    const ext = getExtension(fileName) catch |err| {
+        std.log.err("Failed to get file ext name of {s}: {s}", .{ fileName, @errorName(err) });
+        return false;
+    };
+    if (ext.len != expectedExt.len) return false;
+    for (ext, expectedExt) |i, k| {
+        if (normalizeChar(i) != normalizeChar(k)) return false;
+    }
+    return true;
+}
+
+const jpeg = "jpeg";
+const jpg = "jpg";
+const json = "json";
+pub fn isPicFile(fileName: []const u8) bool {
+    return checkFileExtName(fileName, jpeg) or checkFileExtName(fileName, jpg);
+}
+
+test "check_file_ext_name" {
+    const expected = "jpeg";
+    try std.testing.expect(checkFileExtName("/folder/f1.jpeg", expected));
+    try std.testing.expect(checkFileExtName("/folder/f1.JPEG", expected));
+    try std.testing.expect(!checkFileExtName("/folder/f1.jpg", expected));
+    try std.testing.expect(!checkFileExtName("/folder/f1JPEG", expected));
+
+    try std.testing.expect(isPicFile("/folder/1.jpeg"));
+    try std.testing.expect(isPicFile("/folder/1.jpEG"));
+    try std.testing.expect(isPicFile("/folder/1.jpg"));
+    try std.testing.expect(!isPicFile("/folder/1.jpg1"));
 }
