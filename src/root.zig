@@ -57,4 +57,5 @@ fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8, ignored_dir: []
 
 test {
     _ = @import("dir.zig");
+    _ = @import("algo.zig");
 }
