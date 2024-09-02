@@ -46,7 +46,12 @@ const DirWalkerImpl = struct {
         self.jsonFiles.deinit();
     }
     pub fn applyMetaInfo(self: DirWalkerImpl) void {
-        for (self.jsonFiles) |_| {}
+        std.sort.block([]const u8, self.jsonFiles.items, self, struct {
+            pub fn lessThanFn(_: DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
+                return std.mem.lessThan(u8, lhs, rhs);
+            }
+        }.lessThanFn);
+        //for (self.jsonFiles) |_| {}
     }
     pub fn ifDirShouldBeIgnored(ptr: *anyopaque, dirName: []const u8) bool {
         const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
@@ -96,6 +101,20 @@ fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8, ignored_dir: []
 
     const walker = DirWalkerImpl.dirWalker(&dir);
     myDir.walkDir(img_dir, walker);
+}
+
+test "DirWalker sort json files" {
+    var files = ArrayList(AssetFile).init(std.testing.allocator);
+    defer files.deinit();
+    var dir = DirWalkerImpl.init(std.testing.allocator, std.testing.allocator, "", &files);
+    defer dir.deinit();
+    DirWalkerImpl.add(&dir, "/tmp", "abc.json");
+    DirWalkerImpl.add(&dir, "/tmp", "z.json");
+    DirWalkerImpl.add(&dir, "/tmp", "abd.json");
+    dir.applyMetaInfo();
+    try std.testing.expect(std.mem.eql(u8, "/tmp/abc.json", dir.jsonFiles.items[0]));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", dir.jsonFiles.items[1]));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", dir.jsonFiles.items[2]));
 }
 
 test {
