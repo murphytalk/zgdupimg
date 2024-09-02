@@ -60,7 +60,7 @@ test "test_sha256" {
 }
 
 fn getExtension(filename: []const u8) ![]const u8 {
-    if (std.mem.indexOfScalar(u8, filename, '.')) |last_dot_index| {
+    if (std.mem.lastIndexOfScalar(u8, filename, '.')) |last_dot_index| {
         return filename[(last_dot_index + 1)..];
     }
     // No extension found
@@ -95,13 +95,22 @@ pub fn checkFileExtName(fileName: []const u8, expectedExt: []const u8) bool {
 
 const jpeg = "jpeg";
 const jpg = "jpg";
-const json = "json";
-pub fn isPicFile(fileName: []const u8) bool {
+pub inline fn isPicFile(fileName: []const u8) bool {
     return checkFileExtName(fileName, jpeg) or checkFileExtName(fileName, jpg);
+}
+const mp4 = "mp4";
+const avi = "avi";
+pub inline fn isVideoFile(fileName: []const u8) bool {
+    return checkFileExtName(fileName, mp4) or checkFileExtName(fileName, avi);
+}
+const json = "json";
+pub inline fn isJsonFile(fileName: []const u8) bool {
+    return checkFileExtName(fileName, json);
 }
 
 test "check_file_ext_name" {
     const expected = "jpeg";
+    try std.testing.expect(checkFileExtName("/folder/f1.345.jpeg", expected));
     try std.testing.expect(checkFileExtName("/folder/f1.jpeg", expected));
     try std.testing.expect(checkFileExtName("/folder/f1.JPEG", expected));
     try std.testing.expect(!checkFileExtName("/folder/f1.jpg", expected));
@@ -111,4 +120,8 @@ test "check_file_ext_name" {
     try std.testing.expect(isPicFile("/folder/1.jpEG"));
     try std.testing.expect(isPicFile("/folder/1.jpg"));
     try std.testing.expect(!isPicFile("/folder/1.jpg1"));
+
+    try std.testing.expect(isJsonFile("IMG_0876.JPG.json"));
+
+    try std.testing.expect(isVideoFile("abcd.efg.mp4"));
 }
