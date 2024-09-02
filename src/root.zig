@@ -46,8 +46,8 @@ const DirWalkerImpl = struct {
         self.jsonFiles.deinit();
     }
     pub fn applyMetaInfo(self: DirWalkerImpl) void {
-        std.sort.block([]const u8, self.jsonFiles.items, self, struct {
-            pub fn lessThanFn(_: DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
+        std.sort.block([]const u8, self.jsonFiles.items, &self, struct {
+            pub fn lessThanFn(_: *const DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
                 return std.mem.lessThan(u8, lhs, rhs);
             }
         }.lessThanFn);
