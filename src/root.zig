@@ -120,4 +120,5 @@ test "DirWalker sort json files" {
 test {
     _ = @import("dir.zig");
     _ = @import("algo.zig");
+    _ = @import("media.zig");
 }
