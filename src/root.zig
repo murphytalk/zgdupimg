@@ -151,6 +151,9 @@ test "DirWalker sort and find json file" {
     DirWalkerImpl.add(&dir, "/tmp", "abc.jpeg");
     DirWalkerImpl.add(&dir, "/tmp", "abd.JPG");
 
+    try std.testing.expect(dir.jsonFiles.items.len == 3);
+    try std.testing.expect(files.items.len == 4);
+
     dir.sortJsonFiles();
     try std.testing.expect(std.mem.eql(u8, "/tmp/abc.json", dir.jsonFiles.items[0]));
     try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", dir.jsonFiles.items[1]));
@@ -159,6 +162,9 @@ test "DirWalker sort and find json file" {
     try std.testing.expect(std.mem.eql(u8, "/tmp/z.jpg", files.items[0].fullPath));
     const jsonPath = dir.findJsonMetaFile(files.items[0]) orelse unreachable;
     try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", jsonPath));
+
+    const jsonPath2 = dir.findJsonMetaFile(files.items[3]) orelse unreachable;
+    try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", jsonPath2));
 
     const notExist: AssetFile = .{ .fullPath = "/tmp/fake.jpg", .typ = .pic, .meta = .{} };
     try std.testing.expect(if (dir.findJsonMetaFile(notExist)) |_| false else true);
