@@ -108,7 +108,7 @@ pub inline fn isJsonFile(fileName: []const u8) bool {
     return checkFileExtName(fileName, json);
 }
 
-test "check_file_ext_name" {
+test "check file ext name" {
     const expected = "jpeg";
     try std.testing.expect(checkFileExtName("/folder/f1.345.jpeg", expected));
     try std.testing.expect(checkFileExtName("/folder/f1.jpeg", expected));

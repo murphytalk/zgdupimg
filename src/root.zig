@@ -47,15 +47,42 @@ const DirWalkerImpl = struct {
         }
         self.jsonFiles.deinit();
     }
-    pub fn applyMetaInfo(ptr: *anyopaque) void {
-        const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
-        std.sort.block([]const u8, self.jsonFiles.items, self, struct {
+
+    // prerequisite: json files are sorted
+    fn findJsonMetaFile(self: DirWalkerImpl, asset: AssetFile) ?[]const u8 {
+        if (std.sort.binarySearch([]const u8, asset, self.jsonFiles.items, asset, struct {
+            fn byBaseName(_: AssetFile, key: AssetFile, midJsonPath: []const u8) std.math.Order {
+                const imgFileBaseNameLen = std.mem.lastIndexOfScalar(u8, key.fullPath, '.') orelse 0;
+                const jsnFileBaseNameLen = std.mem.lastIndexOfScalar(u8, midJsonPath, '.') orelse 0;
+                const imgFileBaseName = key.fullPath[0..imgFileBaseNameLen];
+                const jsnFileBaseName = midJsonPath[0..jsnFileBaseNameLen];
+                if (std.mem.eql(u8, imgFileBaseName, jsnFileBaseName)) return .eq;
+                return if (std.mem.lessThan(u8, imgFileBaseName, jsnFileBaseName)) .lt else .gt;
+            }
+        }.byBaseName)) |idx| {
+            return self.jsonFiles.items[idx];
+        } else return null;
+    }
+
+    fn sortJsonFiles(self: DirWalkerImpl) void {
+        std.sort.block([]const u8, self.jsonFiles.items, &self, struct {
             pub fn lessThanFn(_: *const DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
                 return std.mem.lessThan(u8, lhs, rhs);
             }
         }.lessThanFn);
-        //for (self.files.*) |f| {}
     }
+
+    pub fn applyMetaInfo(ptr: *anyopaque) void {
+        const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
+        self.sortJsonFiles();
+        for (self.files.items) |f| {
+            if (f.typ != .pic) continue;
+            if (self.findJsonMetaFile(f.fullPath)) |jsonFile| {
+                _ = jsonFile;
+            }
+        }
+    }
+
     pub fn ifDirShouldBeIgnored(ptr: *anyopaque, dirName: []const u8) bool {
         const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
         return std.mem.eql(u8, self.ignoredDir, dirName);
@@ -106,19 +133,35 @@ fn walkImgDir(allocator: std.mem.Allocator, img_dir: []const u8, ignored_dir: []
     myDir.walkDir(img_dir, walker);
 }
 
-test "DirWalker sort json files" {
+test "DirWalker sort and find json file" {
     var files = ArrayList(AssetFile).init(std.testing.allocator);
     defer files.deinit();
-    var dir = DirWalkerImpl.init(std.testing.allocator, std.testing.allocator, "", &files);
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    var dir = DirWalkerImpl.init(arena.allocator(), std.testing.allocator, "", &files);
     defer dir.deinit();
+
     DirWalkerImpl.add(&dir, "/tmp", "abc.json");
+    DirWalkerImpl.add(&dir, "/tmp", "z.jpg");
     DirWalkerImpl.add(&dir, "/tmp", "z.json");
+    DirWalkerImpl.add(&dir, "/tmp", "no.jpg");
     DirWalkerImpl.add(&dir, "/tmp", "abd.json");
-    const walker = DirWalkerImpl.dirWalker(&dir);
-    walker.applyMetaInfo();
+    DirWalkerImpl.add(&dir, "/tmp", "abc.jpeg");
+    DirWalkerImpl.add(&dir, "/tmp", "abd.JPG");
+
+    dir.sortJsonFiles();
     try std.testing.expect(std.mem.eql(u8, "/tmp/abc.json", dir.jsonFiles.items[0]));
     try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", dir.jsonFiles.items[1]));
     try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", dir.jsonFiles.items[2]));
+
+    try std.testing.expect(std.mem.eql(u8, "/tmp/z.jpg", files.items[0].fullPath));
+    const jsonPath = dir.findJsonMetaFile(files.items[0]) orelse unreachable;
+    try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", jsonPath));
+
+    const notExist: AssetFile = .{ .fullPath = "/tmp/fake.jpg", .typ = .pic, .meta = .{} };
+    try std.testing.expect(if (dir.findJsonMetaFile(notExist)) |_| false else true);
 }
 
 test {
