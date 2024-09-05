@@ -40,8 +40,33 @@ const GoogleMeta = struct {
     } = null,
 };
 
-pub fn parseGoogleMeta(allocator: std.mem.Allocator, jsonStr: []const u8) !std.json.Parsed(GoogleMeta) {
+pub const MediaMeta = struct {
+    timestamp: u64 = 0,
+    geoData: ?struct {
+        latitude: f64,
+        longitude: f64,
+        altitude: f64 = 0,
+        latitudeSpan: f64 = 0,
+        longitudeSpan: f64 = 0,
+    } = null,
+    pub fn init(googleMeta: GoogleMeta) MediaMeta {
+        const tm = googleMeta.photoTakenTime orelse googleMeta.creationTime;
+        var tmstmp = 0;
+        if (tm) |t| {
+            tmstmp = t.timestamp;
+        }
+        return .{ .timestamp = tmstmp, .geoData = googleMeta.geoData orelse googleMeta.geoDataExif };
+    }
+};
+
+fn parseGoogleMeta(allocator: std.mem.Allocator, jsonStr: []const u8) !std.json.Parsed(GoogleMeta) {
     return try std.json.parseFromSlice(GoogleMeta, allocator, jsonStr, .{ .ignore_unknown_fields = true });
+}
+
+pub fn parseMediaMeta(allocator: std.mem.Allocator, json: []const u8) !MediaMeta {
+    const meta = try parseGoogleMeta(allocator, json);
+    defer meta.deinit();
+    return MediaMeta.init(meta);
 }
 
 test "parse json meta" {

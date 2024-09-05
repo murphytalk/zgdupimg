@@ -4,6 +4,7 @@ const ArrayList = std.ArrayList;
 const testing = std.testing;
 const myDir = @import("dir.zig");
 const algo = @import("algo.zig");
+const media = @import("media.zig");
 
 pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
     _ = bin_dir;
@@ -20,8 +21,9 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
 const AssetFile = struct {
     typ: FileType,
     fullPath: []const u8,
+    meta: media.MediaMeta,
     pub fn init(path: []const u8, t: FileType) AssetFile {
-        return AssetFile{ .fullPath = path, .typ = t };
+        return AssetFile{ .fullPath = path, .typ = t, .meta = .{} };
     }
 };
 
@@ -45,13 +47,14 @@ const DirWalkerImpl = struct {
         }
         self.jsonFiles.deinit();
     }
-    pub fn applyMetaInfo(self: DirWalkerImpl) void {
-        std.sort.block([]const u8, self.jsonFiles.items, &self, struct {
+    pub fn applyMetaInfo(ptr: *anyopaque) void {
+        const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
+        std.sort.block([]const u8, self.jsonFiles.items, self, struct {
             pub fn lessThanFn(_: *const DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
                 return std.mem.lessThan(u8, lhs, rhs);
             }
         }.lessThanFn);
-        //for (self.jsonFiles) |_| {}
+        //for (self.files.*) |f| {}
     }
     pub fn ifDirShouldBeIgnored(ptr: *anyopaque, dirName: []const u8) bool {
         const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
@@ -88,7 +91,7 @@ const DirWalkerImpl = struct {
         };
     }
     pub fn dirWalker(self: *DirWalkerImpl) myDir.DirWalker {
-        return .{ .ptr = self, .addFn = add, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored };
+        return .{ .ptr = self, .addFn = add, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored, .applyMetaInfoFn = applyMetaInfo };
     }
 };
 
@@ -111,7 +114,8 @@ test "DirWalker sort json files" {
     DirWalkerImpl.add(&dir, "/tmp", "abc.json");
     DirWalkerImpl.add(&dir, "/tmp", "z.json");
     DirWalkerImpl.add(&dir, "/tmp", "abd.json");
-    dir.applyMetaInfo();
+    const walker = DirWalkerImpl.dirWalker(&dir);
+    walker.applyMetaInfo();
     try std.testing.expect(std.mem.eql(u8, "/tmp/abc.json", dir.jsonFiles.items[0]));
     try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", dir.jsonFiles.items[1]));
     try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", dir.jsonFiles.items[2]));

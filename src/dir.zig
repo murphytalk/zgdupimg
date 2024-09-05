@@ -5,6 +5,8 @@ pub const DirWalker = struct {
     ptr: *anyopaque,
     ifDirShouldBeIgnoredFn: *const fn (ptr: *anyopaque, dirName: []const u8) bool,
     addFn: *const fn (ptr: *anyopaque, parent_path: []const u8, name: []const u8) void,
+    applyMetaInfoFn: *const fn (ptr: *anyopaque) void,
+
     pub fn joinPath(alloc: std.mem.Allocator, parent_path: []const u8, name: []const u8) anyerror![]u8 {
         const dirs = [_][]const u8{ parent_path, name };
         return try std.fs.path.join(alloc, &dirs);
@@ -14,6 +16,9 @@ pub const DirWalker = struct {
     }
     pub fn add(self: *const DirWalker, parent_path: []const u8, name: []const u8) void {
         self.addFn(self.ptr, parent_path, name);
+    }
+    pub fn applyMetaInfo(self: *const DirWalker) void {
+        self.applyMetaInfoFn(self.ptr);
     }
 };
 
@@ -39,8 +44,9 @@ const MockedDirWalker = if (builtin.is_test) struct {
             std.debug.print("failed to add path:{s}", .{@errorName(err)});
         };
     }
+    pub fn applyMetaInfo(_: *anyopaque) void {}
     pub fn dirWalker(self: *MockedDirWalker) DirWalker {
-        return .{ .ptr = self, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored, .addFn = add };
+        return .{ .ptr = self, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored, .addFn = add, .applyMetaInfoFn = applyMetaInfo };
     }
 } else {};
 
@@ -49,6 +55,7 @@ pub fn walkDir(root: []const u8, walker: DirWalker) void {
     var vba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = vba.allocator();
     walkDir0(alloc, root, walker);
+    walker.applyMetaInfoFn();
 }
 
 fn walkDir0(alloc: std.mem.Allocator, root: []const u8, walker: DirWalker) void {
