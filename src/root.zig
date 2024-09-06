@@ -52,7 +52,7 @@ const DirWalkerImpl = struct {
     fn findJsonMetaFile(self: DirWalkerImpl, asset: AssetFile) ?[]const u8 {
         if (std.sort.binarySearch([]const u8, asset, self.jsonFiles.items, asset, struct {
             fn byBaseName(_: AssetFile, key: AssetFile, midJsonPath: []const u8) std.math.Order {
-                const imgFileBaseNameLen = std.mem.lastIndexOfScalar(u8, key.fullPath, '.') orelse 0;
+                const imgFileBaseNameLen = key.fullPath.len;
                 const jsnFileBaseNameLen = std.mem.lastIndexOfScalar(u8, midJsonPath, '.') orelse 0;
                 const imgFileBaseName = key.fullPath[0..imgFileBaseNameLen];
                 const jsnFileBaseName = midJsonPath[0..jsnFileBaseNameLen];
@@ -156,11 +156,11 @@ test "DirWalker sort and find json file" {
     var dir = DirWalkerImpl.init(arena.allocator(), std.testing.allocator, "", &files);
     defer dir.deinit();
 
-    DirWalkerImpl.add(&dir, "/tmp", "abc.json");
+    DirWalkerImpl.add(&dir, "/tmp", "abc.jpeg.json");
     DirWalkerImpl.add(&dir, "/tmp", "z.jpg");
-    DirWalkerImpl.add(&dir, "/tmp", "z.json");
+    DirWalkerImpl.add(&dir, "/tmp", "z.jpg.json");
     DirWalkerImpl.add(&dir, "/tmp", "no.jpg");
-    DirWalkerImpl.add(&dir, "/tmp", "abd.json");
+    DirWalkerImpl.add(&dir, "/tmp", "abd.JPG.json");
     DirWalkerImpl.add(&dir, "/tmp", "abc.jpeg");
     DirWalkerImpl.add(&dir, "/tmp", "abd.JPG");
 
@@ -168,16 +168,16 @@ test "DirWalker sort and find json file" {
     try std.testing.expect(files.items.len == 4);
 
     dir.sortJsonFiles();
-    try std.testing.expect(std.mem.eql(u8, "/tmp/abc.json", dir.jsonFiles.items[0]));
-    try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", dir.jsonFiles.items[1]));
-    try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", dir.jsonFiles.items[2]));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/abc.jpeg.json", dir.jsonFiles.items[0]));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/abd.JPG.json", dir.jsonFiles.items[1]));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/z.jpg.json", dir.jsonFiles.items[2]));
 
     try std.testing.expect(std.mem.eql(u8, "/tmp/z.jpg", files.items[0].fullPath));
     const jsonPath = dir.findJsonMetaFile(files.items[0]) orelse unreachable;
-    try std.testing.expect(std.mem.eql(u8, "/tmp/z.json", jsonPath));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/z.jpg.json", jsonPath));
 
     const jsonPath2 = dir.findJsonMetaFile(files.items[3]) orelse unreachable;
-    try std.testing.expect(std.mem.eql(u8, "/tmp/abd.json", jsonPath2));
+    try std.testing.expect(std.mem.eql(u8, "/tmp/abd.JPG.json", jsonPath2));
 
     const notExist: AssetFile = .{ .fullPath = "/tmp/fake.jpg", .typ = .pic, .meta = .{} };
     try std.testing.expect(if (dir.findJsonMetaFile(notExist)) |_| false else true);
