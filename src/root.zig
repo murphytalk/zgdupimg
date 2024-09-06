@@ -13,7 +13,7 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
     defer imageFiles.deinit();
 
     for (imageFiles.items) |f| {
-        std.log.info("File path: {s}", .{f.fullPath});
+        std.log.info("File path: {s} , meta {any}", .{ f.fullPath, f.meta });
     }
     std.log.info("Total {d}", .{imageFiles.items.len});
 }
@@ -66,7 +66,7 @@ const DirWalkerImpl = struct {
 
     fn sortJsonFiles(self: DirWalkerImpl) void {
         std.sort.block([]const u8, self.jsonFiles.items, &self, struct {
-            pub fn lessThanFn(_: *const DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
+            fn lessThanFn(_: *const DirWalkerImpl, lhs: []const u8, rhs: []const u8) bool {
                 return std.mem.lessThan(u8, lhs, rhs);
             }
         }.lessThanFn);
@@ -75,12 +75,25 @@ const DirWalkerImpl = struct {
     pub fn applyMetaInfo(ptr: *anyopaque) void {
         const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
         self.sortJsonFiles();
-        for (self.files.items) |f| {
+        for (self.files.items) |*f| {
             if (f.typ != .pic) continue;
-            if (self.findJsonMetaFile(f.fullPath)) |jsonFile| {
-                _ = jsonFile;
+            if (self.findJsonMetaFile(f.*)) |jsonFile| {
+                if (self.loadImgMetaJson(jsonFile)) |meta| {
+                    f.meta = meta;
+                } else |err| {
+                    std.log.err("Failed to load meta info from {s}: {s}", .{ jsonFile, @errorName(err) });
+                }
             }
         }
+    }
+
+    pub fn loadImgMetaJson(self: DirWalkerImpl, jsonFile: []const u8) !media.MediaMeta {
+        const f = try std.fs.openFileAbsolute(jsonFile, .{ .mode = .read_only });
+        const size = try f.getEndPos();
+        const buf = try self.jsonAlloc.alloc(u8, size);
+        defer self.jsonAlloc.free(buf);
+        _ = try f.readAll(buf);
+        return try media.parseMediaMeta(self.jsonAlloc, buf);
     }
 
     pub fn ifDirShouldBeIgnored(ptr: *anyopaque, dirName: []const u8) bool {

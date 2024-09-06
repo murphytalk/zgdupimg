@@ -55,7 +55,7 @@ pub fn walkDir(root: []const u8, walker: DirWalker) void {
     var vba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = vba.allocator();
     walkDir0(alloc, root, walker);
-    walker.applyMetaInfoFn();
+    walker.applyMetaInfo();
 }
 
 fn walkDir0(alloc: std.mem.Allocator, root: []const u8, walker: DirWalker) void {
