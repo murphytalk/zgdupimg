@@ -89,6 +89,7 @@ const DirWalkerImpl = struct {
 
     pub fn loadImgMetaJson(self: DirWalkerImpl, jsonFile: []const u8) !media.MediaMeta {
         const f = try std.fs.openFileAbsolute(jsonFile, .{ .mode = .read_only });
+        defer f.close();
         const size = try f.getEndPos();
         const buf = try self.jsonAlloc.alloc(u8, size);
         defer self.jsonAlloc.free(buf);
