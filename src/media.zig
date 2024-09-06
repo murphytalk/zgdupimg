@@ -23,14 +23,6 @@ const GoogleMeta = struct {
         name: []const u8,
     } = null,
     url: []const u8 = "",
-    googlePhotosOrigin: ?struct {
-        mobileUpload: struct {
-            deviceFolder: struct {
-                localFolderName: []const u8,
-            },
-            deviceType: []const u8,
-        },
-    } = null,
 };
 
 pub const MediaMeta = struct {
