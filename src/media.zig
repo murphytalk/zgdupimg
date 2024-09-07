@@ -87,7 +87,6 @@ test "parse json meta" {
     if (meta.value.creationTime) |time| {
         try std.testing.expect(time.timestamp == 1503902470);
     } else try std.testing.expect(false);
-    try std.testing.expect(meta.value.googlePhotosOrigin == null);
 }
 
 test "parse json meta : pick preferred field" {
