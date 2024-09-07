@@ -5,6 +5,7 @@ const testing = std.testing;
 const myDir = @import("dir.zig");
 const algo = @import("algo.zig");
 const media = @import("media.zig");
+const AssetFile = media.AssetFile;
 
 pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
     _ = bin_dir;
@@ -17,17 +18,6 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
     }
     std.log.info("Total {d}", .{imageFiles.items.len});
 }
-
-const AssetFile = struct {
-    typ: FileType,
-    fullPath: []const u8,
-    meta: media.MediaMeta,
-    pub fn init(path: []const u8, t: FileType) AssetFile {
-        return AssetFile{ .fullPath = path, .typ = t, .meta = .{} };
-    }
-};
-
-const FileType = enum { pic, video };
 
 const DirWalkerImpl = struct {
     //allocator for stuff will live longer than walker

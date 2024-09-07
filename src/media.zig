@@ -1,5 +1,16 @@
 const std = @import("std");
 
+pub const AssetFile = struct {
+    typ: FileType,
+    fullPath: []const u8,
+    meta: ?MediaMeta = null,
+    pub fn init(path: []const u8, t: FileType) AssetFile {
+        return AssetFile{ .fullPath = path, .typ = t };
+    }
+};
+
+pub const FileType = enum { pic, video };
+
 const GoogleMetaTime = struct {
     timestamp: u64,
     formatted: ?[]const u8 = "",
