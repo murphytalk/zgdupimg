@@ -3,7 +3,13 @@ const std = @import("std");
 pub const AssetFile = struct {
     typ: FileType,
     fullPath: []const u8,
+    //with which file this one is duplicated with
+    //the other one is the one to be kept
+    duplicated: ?[]const u8 = null,
     meta: ?MediaMeta = null,
+    pub fn hasMeta(self: AssetFile) bool {
+        return self.meta != null;
+    }
     pub fn init(path: []const u8, t: FileType) AssetFile {
         return AssetFile{ .fullPath = path, .typ = t };
     }
