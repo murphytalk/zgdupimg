@@ -11,10 +11,16 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
     _ = bin_dir;
     var imageFiles = ArrayList(AssetFile).init(allocator);
     try walkImgDir(allocator, img_dir, ignored_dir, &imageFiles);
+    std.log.info("Found {} files", .{imageFiles.items.len});
     defer imageFiles.deinit();
 
+    algo.findDuplicatedImgFiles(allocator, imageFiles);
+
     for (imageFiles.items) |f| {
-        std.log.info("File path: {s} , meta {any}", .{ f.fullPath, f.meta });
+        //std.log.info("File path: {s} , meta {any}, duplicated with {any}", .{ f.fullPath, f.meta, f.duplicated });
+        if (f.duplicated) |d| {
+            std.log.info("File path: {s} , meta {any}, duplicated with {s}", .{ f.fullPath, f.meta, d });
+        }
     }
     std.log.info("Total {d}", .{imageFiles.items.len});
 }

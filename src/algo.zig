@@ -15,29 +15,27 @@ const Reader = if (builtin.is_test) struct {
         self.idx += n;
         return n;
     }
-    pub fn deinit(_: Reader) anyerror!void {}
+    pub fn deinit(_: Reader) void {}
+    // test version: use the part before / as file content
+    pub fn init(data: []const u8) !Reader {
+        const i = std.mem.indexOfScalar(u8, data, '/') orelse unreachable;
+        return .{ .test_data = data[0..i] };
+    }
 } else struct {
     file: fs.File,
+    pub fn init(file_path: []const u8) !Reader {
+        return .{ .file = try std.fs.openFileAbsolute(file_path, .{ .mode = .read_only }) };
+    }
     pub fn read(self: *Reader, buf: []u8) anyerror!usize {
         const rdr = self.file.reader();
-        return try rdr.read(&buf);
+        return try rdr.read(buf);
     }
-    pub fn deinit(self: Reader) !void {
+    pub fn deinit(self: Reader) void {
         self.file.close();
     }
 };
 
-pub fn calcFileHash(filePath: []const u8) ![Sha256.digest_length]u8 {
-    const reader: Reader = .{ .file = std.fs.openFileAbsolute(filePath, .{ .mode = .read_only }) };
-    defer reader.deinit();
-    return sha256_digest(4096, &reader);
-}
-
-fn realFileReader(filePath: []const u8) type {
-    return Reader{ .file = std.fs.openFileAbsolute(filePath, .{ .mode = .read_only }) };
-}
-
-fn sha256_digest(comptime BUF_SIZE: u8, reader: *Reader) ![Sha256.digest_length]u8 {
+fn sha256_digest(comptime BUF_SIZE: u16, reader: *Reader) ![Sha256.digest_length]u8 {
     var sha256 = Sha256.init(.{});
 
     var buf: [BUF_SIZE]u8 = undefined;
@@ -51,15 +49,15 @@ fn sha256_digest(comptime BUF_SIZE: u8, reader: *Reader) ![Sha256.digest_length]
 }
 
 test "test_sha256" {
-    const data = "0234567890";
-    var reader1: Reader = .{ .test_data = data };
+    const data = "0234567890/";
+    var reader1 = try Reader.init(data);
     const r1 = try sha256_digest(100, &reader1);
 
-    var reader1_small_buf: Reader = .{ .test_data = data };
+    var reader1_small_buf = try Reader.init(data);
     const r1_small_buf = try sha256_digest(2, &reader1_small_buf);
     try std.testing.expect(std.mem.eql(u8, &r1, &r1_small_buf));
 
-    var reader2: Reader = .{ .test_data = "1234567890" };
+    var reader2 = try Reader.init("1234567890/");
     const r2 = try sha256_digest(100, &reader2);
 
     try std.testing.expect(!std.mem.eql(u8, &r1, &r2));
@@ -138,7 +136,7 @@ fn img1HasHigerProrityThanImg2(f1: media.AssetFile, f2: media.AssetFile) bool {
     if (!(f1HasMeta and f2HasMeta) and (f1HasMeta or f2HasMeta)) {
         return if (f1HasMeta) true else false;
     }
-    const f1nameLessThanf2Name = std.mem.lessThan([]const u8, f1.fullPath, f2.fullPath);
+    const f1nameLessThanf2Name = std.mem.lessThan(u8, f1.fullPath, f2.fullPath);
     return if (f1nameLessThanf2Name) true else false;
 }
 
@@ -147,22 +145,32 @@ const FileHash = struct {
     idx: usize, // index in files
 };
 
-fn findDuplicatedImgFiles0(allocator: std.mem.Allocator, files: std.ArrayList(media.AssetFile), comptime createReader: @TypeOf(realFileReader)) void {
+pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList(media.AssetFile)) void {
     var hashes = std.ArrayList(FileHash).init(allocator);
     defer hashes.deinit();
 
-    var count = 0;
+    var count: usize = 0;
     for (files.items, 0..) |*f, idx| {
         if (f.typ != .pic) continue;
         count += 1;
-        const reader = createReader(f.fullPath);
+        var reader = Reader.init(f.fullPath) catch |err| {
+            std.log.err("Failed to open file {s} to calc hash: {s}", .{ f.fullPath, @errorName(err) });
+            continue;
+        };
         defer reader.deinit();
-        hashes.append(.{ .hash = sha256_digest(4096, reader), .idx = idx });
+        const hash = sha256_digest(4096, &reader) catch |err| {
+            std.log.err("Failed to calc bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
+            continue;
+        };
+        hashes.append(.{ .hash = hash, .idx = idx }) catch |err| {
+            std.log.err("Failed to add bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
+        };
     }
+    std.log.info("Calculated hash of {d} image files", .{count});
 
     std.sort.block(FileHash, hashes.items, files, struct {
         fn lessThan(ctxFiles: std.ArrayList(media.AssetFile), lhs: FileHash, rhs: FileHash) bool {
-            const odr = std.mem.order(u8, lhs.hash, rhs.hash);
+            const odr = std.mem.order(u8, &lhs.hash, &rhs.hash);
             return switch (odr) {
                 .eq => img1HasHigerProrityThanImg2(ctxFiles.items[lhs.idx], ctxFiles.items[rhs.idx]),
                 .lt => true,
@@ -170,15 +178,22 @@ fn findDuplicatedImgFiles0(allocator: std.mem.Allocator, files: std.ArrayList(me
             };
         }
     }.lessThan);
-}
+    std.log.info("Sorted {d} image files by hash", .{count});
 
-fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList(media.AssetFile)) void {
-    return findDuplicatedImgFiles0(allocator, files, realFileReader);
-}
-
-fn createMockedReader(filePath: []const u8) type {
-    const i = std.mem.indexOfScalar(u8, filePath) orelse unreachable;
-    return Reader{ .test_data = filePath[0..i] };
+    var last: ?FileHash = null;
+    for (hashes.items) |h| {
+        if (last) |l| {
+            if (std.mem.eql(u8, &l.hash, &h.hash)) {
+                // h is duplicated with l and has lower priority
+                files.items[h.idx].duplicated = files.items[l.idx].fullPath;
+            } else {
+                last = h;
+            }
+        } else {
+            last = h;
+        }
+    }
+    std.log.info("Duplicated files marked", .{});
 }
 
 test "find duplicated files" {
@@ -192,5 +207,25 @@ test "find duplicated files" {
     try files.append(media.AssetFile.init("content2/f4.jpg", .pic));
     try files.append(media.AssetFile.init("content0/f5.jpg", .pic));
 
-    findDuplicatedImgFiles0(allocator, files, createMockedReader);
+    var content1WithMeta = media.AssetFile.init("content1/ZZZ.jpg", .pic);
+    content1WithMeta.meta = .{};
+    try files.append(content1WithMeta);
+
+    findDuplicatedImgFiles(allocator, files);
+    for (files.items) |f| {
+        if (std.mem.eql(u8, "content1/f1.jpg", f.fullPath)) {
+            const dupicated_with = f.duplicated orelse unreachable;
+            try std.testing.expect(std.mem.eql(u8, dupicated_with, "content1/ZZZ.jpg"));
+        } else if (std.mem.eql(u8, "content2/f2.jpg", f.fullPath)) {
+            try std.testing.expect(f.duplicated == null);
+        } else if (std.mem.eql(u8, "content1/f3.jpg", f.fullPath)) {
+            const dupicated_with = f.duplicated orelse unreachable;
+            try std.testing.expect(std.mem.eql(u8, dupicated_with, "content1/ZZZ.jpg"));
+        } else if (std.mem.eql(u8, "content2/f4.jpg", f.fullPath)) {
+            const dupicated_with = f.duplicated orelse unreachable;
+            try std.testing.expect(std.mem.eql(u8, dupicated_with, "content2/f2.jpg"));
+        } else if (std.mem.eql(u8, "content1/ZZZ.jpg", f.fullPath)) {
+            try std.testing.expect(f.duplicated == null);
+        }
+    }
 }
