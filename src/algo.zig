@@ -165,8 +165,8 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList
     }
     std.log.info("Calculated hash of {d} image files", .{count});
 
-    std.sort.block(FileHash, hashes.items, files, struct {
-        fn lessThan(_: std.ArrayList(media.AssetFile), lhs: FileHash, rhs: FileHash) bool {
+    std.sort.block(FileHash, hashes.items, @as(u8, 0), struct {
+        fn lessThan(_: u8, lhs: FileHash, rhs: FileHash) bool {
             const odr = std.mem.order(u8, &lhs.hash, &rhs.hash);
             return switch (odr) {
                 .eq => img1HasHigerProrityThanImg2(lhs.file.*, rhs.file.*),
