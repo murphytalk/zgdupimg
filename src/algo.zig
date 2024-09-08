@@ -142,10 +142,6 @@ fn img1HasHigerProrityThanImg2(f1: media.AssetFile, f2: media.AssetFile) bool {
     return if (f1nameLessThanf2Name) true else false;
 }
 
-inline fn ns2sec(time_ns: u64) f64 {
-    return @as(f64, @floatFromInt(time_ns)) / 1_000_000_000.0;
-}
-
 const FileHash = struct {
     hash: [Sha256.digest_length]u8,
     idx: usize, // index in files
@@ -155,7 +151,6 @@ fn findDuplicatedImgFiles0(allocator: std.mem.Allocator, files: std.ArrayList(me
     var hashes = std.ArrayList(FileHash).init(allocator);
     defer hashes.deinit();
 
-    var timer = try std.time.Timer.start();
     var count = 0;
     for (files.items, 0..) |*f, idx| {
         if (f.typ != .pic) continue;
@@ -164,8 +159,6 @@ fn findDuplicatedImgFiles0(allocator: std.mem.Allocator, files: std.ArrayList(me
         defer reader.deinit();
         hashes.append(.{ .hash = sha256_digest(4096, reader), .idx = idx });
     }
-    const time_ns = try timer.lap();
-    std.log.info("spent {d:.3} seconds to calc hash of {d} files", .{ ns2sec(time_ns), count });
 
     std.sort.block(FileHash, hashes.items, files, struct {
         fn lessThan(ctxFiles: std.ArrayList(media.AssetFile), lhs: FileHash, rhs: FileHash) bool {
@@ -177,7 +170,6 @@ fn findDuplicatedImgFiles0(allocator: std.mem.Allocator, files: std.ArrayList(me
             };
         }
     }.lessThan);
-    std.log.info("spent {d:.3} seconds to sort {d} files by hash", .{ ns2sec(try timer.lap()), count });
 }
 
 fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList(media.AssetFile)) void {
