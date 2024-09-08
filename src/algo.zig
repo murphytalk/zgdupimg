@@ -140,17 +140,14 @@ fn img1HasHigerProrityThanImg2(f1: media.AssetFile, f2: media.AssetFile) bool {
     return if (f1nameLessThanf2Name) true else false;
 }
 
-const FileHash = struct {
-    hash: [Sha256.digest_length]u8,
-    idx: usize, // index in files
-};
+const FileHash = struct { hash: [Sha256.digest_length]u8, file: *media.AssetFile };
 
 pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList(media.AssetFile)) void {
     var hashes = std.ArrayList(FileHash).init(allocator);
     defer hashes.deinit();
 
     var count: usize = 0;
-    for (files.items, 0..) |*f, idx| {
+    for (files.items) |*f| {
         if (f.typ != .pic) continue;
         count += 1;
         var reader = Reader.init(f.fullPath) catch |err| {
@@ -162,17 +159,17 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList
             std.log.err("Failed to calc bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
             continue;
         };
-        hashes.append(.{ .hash = hash, .idx = idx }) catch |err| {
+        hashes.append(.{ .hash = hash, .file = f }) catch |err| {
             std.log.err("Failed to add bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
         };
     }
     std.log.info("Calculated hash of {d} image files", .{count});
 
     std.sort.block(FileHash, hashes.items, files, struct {
-        fn lessThan(ctxFiles: std.ArrayList(media.AssetFile), lhs: FileHash, rhs: FileHash) bool {
+        fn lessThan(_: std.ArrayList(media.AssetFile), lhs: FileHash, rhs: FileHash) bool {
             const odr = std.mem.order(u8, &lhs.hash, &rhs.hash);
             return switch (odr) {
-                .eq => img1HasHigerProrityThanImg2(ctxFiles.items[lhs.idx], ctxFiles.items[rhs.idx]),
+                .eq => img1HasHigerProrityThanImg2(lhs.file.*, rhs.file.*),
                 .lt => true,
                 .gt => false,
             };
@@ -185,7 +182,7 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList
         if (last) |l| {
             if (std.mem.eql(u8, &l.hash, &h.hash)) {
                 // h is duplicated with l and has lower priority
-                files.items[h.idx].duplicated = files.items[l.idx].fullPath;
+                h.file.duplicated = l.file.fullPath;
             } else {
                 last = h;
             }
