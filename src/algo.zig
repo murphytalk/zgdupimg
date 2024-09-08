@@ -226,6 +226,8 @@ test "find duplicated files" {
             try std.testing.expect(std.mem.eql(u8, dupicated_with, "content2/f2.jpg"));
         } else if (std.mem.eql(u8, "content1/ZZZ.jpg", f.fullPath)) {
             try std.testing.expect(f.duplicated == null);
-        }
+        } else if (std.mem.eql(u8, "content0/f5.jpg", f.fullPath)) {
+            try std.testing.expect(f.duplicated == null);
+        } else unreachable;
     }
 }
