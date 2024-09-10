@@ -104,8 +104,10 @@ pub inline fn isPicFile(fileName: []const u8) bool {
 }
 const mp4 = "mp4";
 const avi = "avi";
+const mov = "mov";
+const mts = "mts";
 pub inline fn isVideoFile(fileName: []const u8) bool {
-    return checkFileExtName(fileName, mp4) or checkFileExtName(fileName, avi);
+    return checkFileExtName(fileName, mp4) or checkFileExtName(fileName, avi) or checkFileExtName(fileName, mov) or checkFileExtName(fileName, mts);
 }
 const json = "json";
 pub inline fn isJsonFile(fileName: []const u8) bool {
