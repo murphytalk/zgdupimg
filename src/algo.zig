@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const fs = std.fs;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 const media = @import("media.zig");
+const AL = std.ArrayList;
 
 const Reader = if (builtin.is_test) struct {
     test_data: []const u8,
@@ -144,14 +145,10 @@ fn img1HasHigerProrityThanImg2(f1: media.AssetFile, f2: media.AssetFile) bool {
 
 const FileHash = struct { hash: [Sha256.digest_length]u8, file: *media.AssetFile };
 
-pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList(media.AssetFile)) void {
-    var hashes = std.ArrayList(FileHash).init(allocator);
-    defer hashes.deinit();
-
+fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize, endIdx: usize) void {
     var count: usize = 0;
-    for (files.items) |*f| {
+    for (files.items[startIdx..endIdx]) |*f| {
         if (f.typ != .pic) continue;
-        count += 1;
         var reader = Reader.init(f.fullPath) catch |err| {
             std.log.err("Failed to open file {s} to calc hash: {s}", .{ f.fullPath, @errorName(err) });
             continue;
@@ -164,10 +161,49 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList
         hashes.append(.{ .hash = hash, .file = f }) catch |err| {
             std.log.err("Failed to add bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
         };
+        count += 1;
     }
-    std.log.info("Calculated hash of {d} image files", .{count});
+    std.log.info("Thread {any}: calculated hash of {d} image files", .{ std.Thread.getCurrentId(), count });
+}
 
-    std.sort.block(FileHash, hashes.items, @as(u8, 0), struct {
+pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: AL(media.AssetFile)) void {
+    //var hashes = AL(FileHash).init(allocator);
+    //defer hashes.deinit();
+
+    const cpuN = std.Thread.getCpuCount() catch 8;
+    var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
+        std.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
+    };
+    defer allocator.free(hashes);
+
+    for (hashes) |*h| {
+        h.* = AL(FileHash).init(allocator);
+    }
+
+    const pool = allocator.alloc(std.Thread, cpuN) catch |err| {
+        std.log.err("failed to alloc thread pool: {s}", .{@errorName(err)});
+    };
+    defer allocator.free(pool);
+
+    var startIdx: usize = 0;
+    const N: usize = @intFromFloat(@as(f64, files.items.len) / @as(f64, cpuN));
+    for (pool, 0..) |*thread, i| {
+        const n = if (startIdx + N > files.items.len) files.items.len - startIdx else N;
+        thread.* = try std.Thread.spawn(.{}, readHash, .{ &hashes[i], &files, startIdx, startIdx + n });
+        startIdx += n;
+    }
+
+    for (pool) |thread| {
+        thread.join();
+    }
+    std.log.info("All files hash read", .{});
+
+    var i: usize = 1;
+    while (i < cpuN) : (i += 1) {
+        hashes[0].appendSlice(hashes[i].items);
+    }
+
+    std.sort.block(FileHash, hashes[0].items, @as(u8, 0), struct {
         fn lessThan(_: u8, lhs: FileHash, rhs: FileHash) bool {
             const odr = std.mem.order(u8, &lhs.hash, &rhs.hash);
             return switch (odr) {
@@ -177,10 +213,10 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList
             };
         }
     }.lessThan);
-    std.log.info("Sorted {d} image files by hash", .{count});
+    std.log.info("Sorted {d} image files by hash", .{hashes[0].items.len});
 
     var last: ?FileHash = null;
-    for (hashes.items) |h| {
+    for (hashes[0].items) |h| {
         if (last) |l| {
             if (std.mem.eql(u8, &l.hash, &h.hash)) {
                 // h is duplicated with l and has lower priority
@@ -197,7 +233,7 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: std.ArrayList
 
 test "find duplicated files" {
     const allocator = std.testing.allocator;
-    var files = std.ArrayList(media.AssetFile).init(allocator);
+    var files = AL(media.AssetFile).init(allocator);
     defer files.deinit();
 
     try files.append(media.AssetFile.init("content1/f1.jpg", .pic));
