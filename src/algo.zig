@@ -167,12 +167,11 @@ fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize,
 }
 
 pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: AL(media.AssetFile)) void {
-    //var hashes = AL(FileHash).init(allocator);
-    //defer hashes.deinit();
-
     const cpuN = std.Thread.getCpuCount() catch 8;
+    std.log.info("Thread pool size is {d}", cpuN);
     var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
         std.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
+        return;
     };
     defer allocator.free(hashes);
 
@@ -182,14 +181,21 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: AL(media.Asse
 
     const pool = allocator.alloc(std.Thread, cpuN) catch |err| {
         std.log.err("failed to alloc thread pool: {s}", .{@errorName(err)});
+        return;
     };
     defer allocator.free(pool);
 
     var startIdx: usize = 0;
-    const N: usize = @intFromFloat(@as(f64, files.items.len) / @as(f64, cpuN));
+    const fl: f64 = @floatFromInt(files.items.len);
+    const cn: f64 = @floatFromInt(cpuN);
+    const N: usize = @intFromFloat(fl / cn);
     for (pool, 0..) |*thread, i| {
-        const n = if (startIdx + N > files.items.len) files.items.len - startIdx else N;
-        thread.* = try std.Thread.spawn(.{}, readHash, .{ &hashes[i], &files, startIdx, startIdx + n });
+        const n = if (i < cpuN - 1) N else (files.items.len - N * (cpuN - 1));
+        std.log.info("Spawning thread to calc hash of {d} files", .{n});
+        thread.* = std.Thread.spawn(.{}, readHash, .{ &hashes[i], &files, startIdx, startIdx + n }) catch |err| {
+            std.log.err("failed to spwan thread : {s}", .{@errorName(err)});
+            return;
+        };
         startIdx += n;
     }
 
@@ -200,7 +206,10 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: AL(media.Asse
 
     var i: usize = 1;
     while (i < cpuN) : (i += 1) {
-        hashes[0].appendSlice(hashes[i].items);
+        hashes[0].appendSlice(hashes[i].items) catch |err| {
+            std.log.err("Failed to append hash slice", .{@errorName(err)});
+            return;
+        };
     }
 
     std.sort.block(FileHash, hashes[0].items, @as(u8, 0), struct {
