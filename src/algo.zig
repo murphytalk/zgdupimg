@@ -166,7 +166,7 @@ fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize,
     std.log.info("Thread {any}: calculated hash of {d} image files", .{ std.Thread.getCurrentId(), count });
 }
 
-pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: AL(media.AssetFile)) void {
+pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
     const cpuN = std.Thread.getCpuCount() catch 8;
     std.log.info("Thread pool size is {d}", cpuN);
     var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
@@ -192,7 +192,7 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: AL(media.Asse
     for (pool, 0..) |*thread, i| {
         const n = if (i < cpuN - 1) N else (files.items.len - N * (cpuN - 1));
         std.log.info("Spawning thread to calc hash of {d} files", .{n});
-        thread.* = std.Thread.spawn(.{}, readHash, .{ &hashes[i], &files, startIdx, startIdx + n }) catch |err| {
+        thread.* = std.Thread.spawn(.{}, readHash, .{ &hashes[i], files, startIdx, startIdx + n }) catch |err| {
             std.log.err("failed to spwan thread : {s}", .{@errorName(err)});
             return;
         };
@@ -255,7 +255,7 @@ test "find duplicated files" {
     content1WithMeta.meta = .{};
     try files.append(content1WithMeta);
 
-    findDuplicatedImgFiles(allocator, files);
+    findDuplicatedImgFiles(allocator, &files);
     for (files.items) |f| {
         if (std.mem.eql(u8, "content1/f1.jpg", f.fullPath)) {
             const dupicated_with = f.duplicated orelse unreachable;

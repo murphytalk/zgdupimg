@@ -14,7 +14,7 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
     std.log.info("Found {} files", .{imageFiles.items.len});
     defer imageFiles.deinit();
 
-    algo.findDuplicatedImgFiles(allocator, imageFiles);
+    algo.findDuplicatedImgFiles(allocator, &imageFiles);
 
     for (imageFiles.items) |f| {
         if (f.duplicated) |d| {
