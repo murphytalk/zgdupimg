@@ -238,6 +238,9 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.Ass
         }
     }
     std.log.info("Duplicated files marked", .{});
+    for (hashes) |*h| {
+        h.deinit();
+    }
 }
 
 test "find duplicated files" {
