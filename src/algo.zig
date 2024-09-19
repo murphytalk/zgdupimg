@@ -168,7 +168,7 @@ fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize,
 
 pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
     const cpuN = std.Thread.getCpuCount() catch 8;
-    std.log.info("Thread pool size is {d}", cpuN);
+    std.log.info("Thread pool size is {d}", .{cpuN});
     var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
         std.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
         return;
@@ -207,7 +207,7 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.Ass
     var i: usize = 1;
     while (i < cpuN) : (i += 1) {
         hashes[0].appendSlice(hashes[i].items) catch |err| {
-            std.log.err("Failed to append hash slice", .{@errorName(err)});
+            std.log.err("Failed to append hash slice: {s}", .{@errorName(err)});
             return;
         };
     }
