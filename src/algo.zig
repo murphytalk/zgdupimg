@@ -168,6 +168,10 @@ fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize,
 
 pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
     const cpuN = std.Thread.getCpuCount() catch 8;
+    findDuplicatedImgFiles0(cpuN, allocator, files);
+}
+
+fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
     std.log.info("Thread pool size is {d}", .{cpuN});
     var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
         std.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
@@ -258,7 +262,7 @@ test "find duplicated files" {
     content1WithMeta.meta = .{};
     try files.append(content1WithMeta);
 
-    findDuplicatedImgFiles(allocator, &files);
+    findDuplicatedImgFiles0(2, allocator, &files);
     for (files.items) |f| {
         if (std.mem.eql(u8, "content1/f1.jpg", f.fullPath)) {
             const dupicated_with = f.duplicated orelse unreachable;
