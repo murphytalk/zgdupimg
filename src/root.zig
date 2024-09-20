@@ -5,23 +5,24 @@ const testing = std.testing;
 const myDir = @import("dir.zig");
 const algo = @import("algo.zig");
 const media = @import("media.zig");
+const utils = @import("utils.zig");
 const AssetFile = media.AssetFile;
 
 pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
     _ = bin_dir;
     var imageFiles = ArrayList(AssetFile).init(allocator);
     try walkImgDir(allocator, img_dir, ignored_dir, &imageFiles);
-    std.log.info("Found {} files", .{imageFiles.items.len});
+    utils.log.info("Found {} files", .{imageFiles.items.len});
     defer imageFiles.deinit();
 
     algo.findDuplicatedImgFiles(allocator, &imageFiles);
 
     for (imageFiles.items) |f| {
         if (f.duplicated) |d| {
-            std.log.info("Duplicated file path: {s} , meta {any}, duplicated with {s}", .{ f.fullPath, f.meta, d });
+            utils.log.info("Duplicated file path: {s} , meta {any}, duplicated with {s}", .{ f.fullPath, f.meta, d });
         }
     }
-    std.log.info("Total {d}", .{imageFiles.items.len});
+    utils.log.info("Total {d}", .{imageFiles.items.len});
 }
 
 const DirWalkerImpl = struct {
@@ -76,7 +77,7 @@ const DirWalkerImpl = struct {
                 if (self.loadImgMetaJson(jsonFile)) |meta| {
                     f.meta = meta;
                 } else |err| {
-                    std.log.err("Failed to load meta info from {s}: {s}", .{ jsonFile, @errorName(err) });
+                    utils.log.err("Failed to load meta info from {s}: {s}", .{ jsonFile, @errorName(err) });
                 }
             }
         }
@@ -102,28 +103,28 @@ const DirWalkerImpl = struct {
         const isVideo = algo.isVideoFile(name);
 
         if (!isJson and !isPic and !isVideo) {
-            std.log.debug("ignored {s}", .{name});
+            utils.log.debug("ignored {s}", .{name});
             return;
         }
 
         const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
         const path = myDir.DirWalker.joinPath(if (isJson) self.jsonAlloc else self.alloc, parent_path, name) catch |err| {
-            std.log.err("failed to join path {s} with {s}: {s}", .{ parent_path, name, @errorName(err) });
+            utils.log.err("failed to join path {s} with {s}: {s}", .{ parent_path, name, @errorName(err) });
             return;
         };
 
         if (isJson) {
-            std.log.debug("adding json file {s}", .{path});
+            utils.log.debug("adding json file {s}", .{path});
             self.jsonFiles.append(path) catch |err| {
-                std.log.err("failed to add json path {s}: {s}", .{ path, @errorName(err) });
+                utils.log.err("failed to add json path {s}: {s}", .{ path, @errorName(err) });
             };
             return;
         }
 
-        std.log.debug("adding file {s}", .{path});
+        utils.log.debug("adding file {s}", .{path});
         const imgFile = AssetFile.init(path, if (isPic) .pic else .video);
         self.files.append(imgFile) catch |err| {
-            std.log.err("failed to append image file path:{s}", .{@errorName(err)});
+            utils.log.err("failed to append image file path:{s}", .{@errorName(err)});
         };
     }
     pub fn dirWalker(self: *DirWalkerImpl) myDir.DirWalker {

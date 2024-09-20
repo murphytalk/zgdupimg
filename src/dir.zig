@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const utils = @import("utils.zig");
 
 pub const DirWalker = struct {
     ptr: *anyopaque,
@@ -61,7 +62,7 @@ pub fn walkDir(root: []const u8, walker: DirWalker) void {
 fn walkDir0(alloc: std.mem.Allocator, root: []const u8, walker: DirWalker) void {
     var dir: OpenDir = .{};
     dir.openAbs(root) catch |err| {
-        std.log.err("Error while iterating dir: {s}", .{@errorName(err)});
+        utils.log.err("Error while iterating dir: {s}", .{@errorName(err)});
         return;
     };
     doWalkDir(alloc, walker, root, dir);
@@ -107,17 +108,17 @@ fn doWalkDir(alloc: std.mem.Allocator, walker: DirWalker, parent_path: []const u
         if (entry) |e| {
             switch (e.kind) {
                 .directory => {
-                    //std.log.debug("found dir {s}", .{e.name});
+                    //utils.log.debug("found dir {s}", .{e.name});
                     const doNotIgnore = if (builtin.is_test) false else !walker.ifDirShouldBeIgnored(e.name);
                     if (doNotIgnore) {
                         const dirs = [_][]const u8{ parent_path, e.name };
                         const path = std.fs.path.join(alloc, &dirs) catch |err| {
-                            std.log.err("failed to join dir {s} with {s}:{s}", .{ parent_path, e.name, @errorName(err) });
+                            utils.log.err("failed to join dir {s} with {s}:{s}", .{ parent_path, e.name, @errorName(err) });
                             return;
                         };
                         var dir: OpenDir = .{};
                         dir.open(path) catch |err| {
-                            std.log.err("failed to open dir {s}: {s}", .{ path, @errorName(err) });
+                            utils.log.err("failed to open dir {s}: {s}", .{ path, @errorName(err) });
                             alloc.free(path);
                             return;
                         };
@@ -127,14 +128,14 @@ fn doWalkDir(alloc: std.mem.Allocator, walker: DirWalker, parent_path: []const u
                     }
                 },
                 .file => {
-                    //std.log.debug("found file {s}", .{e.name});
+                    //utils.log.debug("found file {s}", .{e.name});
                     walker.add(parent_path, e.name);
                 },
                 else => {},
             }
         } else break;
     } else |err| {
-        std.log.err("Error while iterating dir: {s}", .{@errorName(err)});
+        utils.log.err("Error while iterating dir: {s}", .{@errorName(err)});
     }
 }
 

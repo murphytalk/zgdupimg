@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const fs = std.fs;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 const media = @import("media.zig");
+const utils = @import("utils.zig");
 const AL = std.ArrayList;
 
 const Reader = if (builtin.is_test) struct {
@@ -88,7 +89,7 @@ fn normalizeChar(c: u8) u8 {
 
 pub fn checkFileExtName(fileName: []const u8, expectedExt: []const u8) bool {
     const ext = getExtension(fileName) catch |err| {
-        std.log.err("Failed to get file ext name of {s}: {s}", .{ fileName, @errorName(err) });
+        utils.log.err("Failed to get file ext name of {s}: {s}", .{ fileName, @errorName(err) });
         return false;
     };
     if (ext.len != expectedExt.len) return false;
@@ -146,25 +147,25 @@ fn img1HasHigerProrityThanImg2(f1: media.AssetFile, f2: media.AssetFile) bool {
 const FileHash = struct { hash: [Sha256.digest_length]u8, file: *media.AssetFile };
 
 fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize, endIdx: usize) void {
-    std.log.info("Thread {any}: start to calculatd hash", .{std.Thread.getCurrentId()});
+    utils.log.info("Thread {any}: start to calculatd hash", .{std.Thread.getCurrentId()});
     var count: usize = 0;
     for (files.items[startIdx..endIdx]) |*f| {
         if (f.typ != .pic) continue;
         var reader = Reader.init(f.fullPath) catch |err| {
-            std.log.err("Failed to open file {s} to calc hash: {s}", .{ f.fullPath, @errorName(err) });
+            utils.log.err("Failed to open file {s} to calc hash: {s}", .{ f.fullPath, @errorName(err) });
             continue;
         };
         defer reader.deinit();
         const hash = sha256_digest(4096, &reader) catch |err| {
-            std.log.err("Failed to calc bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
+            utils.log.err("Failed to calc bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
             continue;
         };
         hashes.append(.{ .hash = hash, .file = f }) catch |err| {
-            std.log.err("Failed to add bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
+            utils.log.err("Failed to add bash of file {s}:{s}", .{ f.fullPath, @errorName(err) });
         };
         count += 1;
     }
-    std.log.info("Thread {any}: calculated hash of {d} image files", .{ std.Thread.getCurrentId(), count });
+    utils.log.info("Thread {any}: calculated hash of {d} image files", .{ std.Thread.getCurrentId(), count });
 }
 
 pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
@@ -173,10 +174,10 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.Ass
 }
 
 fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
-    std.log.info("Thread pool size is {d}", .{cpuN});
+    utils.log.info("Thread pool size is {d}", .{cpuN});
     var s1 = std.time.timestamp();
     var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
-        std.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
+        utils.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
         return;
     };
     defer allocator.free(hashes);
@@ -186,7 +187,7 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
     }
 
     const pool = allocator.alloc(std.Thread, cpuN) catch |err| {
-        std.log.err("failed to alloc thread pool: {s}", .{@errorName(err)});
+        utils.log.err("failed to alloc thread pool: {s}", .{@errorName(err)});
         return;
     };
     defer allocator.free(pool);
@@ -197,30 +198,30 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
     const N: usize = @intFromFloat(fl / cn);
     for (pool, 0..) |*thread, i| {
         const n = if (i < cpuN - 1) N else (files.items.len - N * (cpuN - 1));
-        std.log.info("Spawning thread to calc hash of {d} files", .{n});
+        utils.log.info("Spawning thread to calc hash of {d} files", .{n});
         thread.* = std.Thread.spawn(.{}, readHash, .{ &hashes[i], files, startIdx, startIdx + n }) catch |err| {
-            std.log.err("failed to spwan thread : {s}", .{@errorName(err)});
+            utils.log.err("failed to spwan thread : {s}", .{@errorName(err)});
             return;
         };
         startIdx += n;
     }
 
-    std.log.info("Waiting threads", .{});
+    utils.log.info("Waiting threads", .{});
     for (pool) |thread| {
         thread.join();
     }
-    std.log.info("All files hash read: {d} seconds", .{std.time.timestamp() - s1});
+    utils.log.info("All files hash read: {d} seconds", .{std.time.timestamp() - s1});
 
     s1 = std.time.timestamp();
     var i: usize = 1;
     while (i < cpuN) : (i += 1) {
         hashes[0].appendSlice(hashes[i].items) catch |err| {
-            std.log.err("Failed to append hash slice: {s}", .{@errorName(err)});
+            utils.log.err("Failed to append hash slice: {s}", .{@errorName(err)});
             return;
         };
     }
 
-    std.log.info("All files hash lists joined: {d} seconds", .{std.time.timestamp() - s1});
+    utils.log.info("All files hash lists joined: {d} seconds", .{std.time.timestamp() - s1});
 
     s1 = std.time.timestamp();
     std.sort.block(FileHash, hashes[0].items, @as(u8, 0), struct {
@@ -233,7 +234,7 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
             };
         }
     }.lessThan);
-    std.log.info("Sorted {d} image files by hash: {d} seconds", .{ hashes[0].items.len, std.time.timestamp() - s1 });
+    utils.log.info("Sorted {d} image files by hash: {d} seconds", .{ hashes[0].items.len, std.time.timestamp() - s1 });
 
     s1 = std.time.timestamp();
     var last: ?FileHash = null;
@@ -249,7 +250,7 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
             last = h;
         }
     }
-    std.log.info("Duplicated files marked: {d} seconds", .{std.time.timestamp() - s1});
+    utils.log.info("Duplicated files marked: {d} seconds", .{std.time.timestamp() - s1});
     for (hashes) |*h| {
         h.deinit();
     }

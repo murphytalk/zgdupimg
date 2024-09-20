@@ -1,7 +1,9 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const clap = @import("clap");
 const io = std.io;
 const root = @import("root.zig");
+const utils = @import("utils.zig");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -32,15 +34,15 @@ pub fn main() !void {
     const ignoreDir: []const u8 = res.args.ignorePath orelse "@eaDir";
 
     if (res.args.dir) |img_dir| {
-        std.log.debug("program started", .{});
-        std.log.info("Scan images in {s}, ignoring dir: {s}", .{ img_dir, ignoreDir });
+        utils.log.debug("program started", .{});
+        utils.log.info("Scan images in {s}, ignoring dir: {s}", .{ img_dir, ignoreDir });
         if (res.args.bin) |bin_dir| {
-            std.log.info("Will save duplicated images in {s}", .{bin_dir});
+            utils.log.info("Will save duplicated images in {s}", .{bin_dir});
             try root.doWork(allocator, ignoreDir, img_dir, bin_dir);
         } else {
-            std.log.info("-b not specified", .{});
+            utils.log.info("-b not specified", .{});
         }
     } else {
-        std.log.info("-d not specified", .{});
+        utils.log.info("-d not specified", .{});
     }
 }
