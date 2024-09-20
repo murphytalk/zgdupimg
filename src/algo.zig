@@ -146,6 +146,7 @@ fn img1HasHigerProrityThanImg2(f1: media.AssetFile, f2: media.AssetFile) bool {
 const FileHash = struct { hash: [Sha256.digest_length]u8, file: *media.AssetFile };
 
 fn readHash(hashes: *AL(FileHash), files: *AL(media.AssetFile), startIdx: usize, endIdx: usize) void {
+    std.log.info("Thread {any}: start to calculatd hash", .{std.Thread.getCurrentId()});
     var count: usize = 0;
     for (files.items[startIdx..endIdx]) |*f| {
         if (f.typ != .pic) continue;
@@ -173,6 +174,7 @@ pub fn findDuplicatedImgFiles(allocator: std.mem.Allocator, files: *AL(media.Ass
 
 fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL(media.AssetFile)) void {
     std.log.info("Thread pool size is {d}", .{cpuN});
+    var s1 = std.time.timestamp();
     var hashes = allocator.alloc(AL(FileHash), cpuN) catch |err| {
         std.log.err("failed to alloc {d} hash lists: {s}", .{ cpuN, @errorName(err) });
         return;
@@ -203,11 +205,13 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
         startIdx += n;
     }
 
+    std.log.info("Waiting threads", .{});
     for (pool) |thread| {
         thread.join();
     }
-    std.log.info("All files hash read", .{});
+    std.log.info("All files hash read: {d} seconds", .{std.time.timestamp() - s1});
 
+    s1 = std.time.timestamp();
     var i: usize = 1;
     while (i < cpuN) : (i += 1) {
         hashes[0].appendSlice(hashes[i].items) catch |err| {
@@ -216,6 +220,9 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
         };
     }
 
+    std.log.info("All files hash lists joined: {d} seconds", .{std.time.timestamp() - s1});
+
+    s1 = std.time.timestamp();
     std.sort.block(FileHash, hashes[0].items, @as(u8, 0), struct {
         fn lessThan(_: u8, lhs: FileHash, rhs: FileHash) bool {
             const odr = std.mem.order(u8, &lhs.hash, &rhs.hash);
@@ -226,8 +233,9 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
             };
         }
     }.lessThan);
-    std.log.info("Sorted {d} image files by hash", .{hashes[0].items.len});
+    std.log.info("Sorted {d} image files by hash: {d} seconds", .{ hashes[0].items.len, std.time.timestamp() - s1 });
 
+    s1 = std.time.timestamp();
     var last: ?FileHash = null;
     for (hashes[0].items) |h| {
         if (last) |l| {
@@ -241,7 +249,7 @@ fn findDuplicatedImgFiles0(cpuN: usize, allocator: std.mem.Allocator, files: *AL
             last = h;
         }
     }
-    std.log.info("Duplicated files marked", .{});
+    std.log.info("Duplicated files marked: {d} seconds", .{std.time.timestamp() - s1});
     for (hashes) |*h| {
         h.deinit();
     }
