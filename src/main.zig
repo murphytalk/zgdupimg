@@ -14,6 +14,7 @@ pub fn main() !void {
         \\-d, --dir <str>         Directory to scan images
         \\-b, --bin <str>         Directory to save duplicated images
         \\-i, --ignorePath <str>  Directory to ignore when searching images
+        \\-o, --orphanFiles      Find and move orphan files
     );
     var diag = clap.Diagnostic{};
     var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
@@ -36,7 +37,11 @@ pub fn main() !void {
         std.log.info("Scan images in {s}, ignoring dir: {s}", .{ img_dir, ignoreDir });
         if (res.args.bin) |bin_dir| {
             std.log.info("Will save duplicated images in {s}", .{bin_dir});
-            try root.doWork(allocator, ignoreDir, img_dir, bin_dir);
+            if (res.args.orphanFiles != 0) {
+                try root.moveOrphanFiles(allocator, ignoreDir, img_dir, bin_dir);
+            } else {
+                try root.doWork(allocator, ignoreDir, img_dir, bin_dir);
+            }
         } else {
             std.log.info("-b not specified", .{});
         }

@@ -114,6 +114,13 @@ pub inline fn isJsonFile(fileName: []const u8) bool {
     return checkFileExtName(fileName, json);
 }
 
+pub fn imgFilePathFromJsonMetaFilePath(json_path: []const u8) []const u8 {
+    if (isJsonFile(json_path)) {
+        return json_path[0..(json_path.len - json.len - 1)];
+    }
+    return json_path;
+}
+
 test "check file ext name" {
     const expected = "jpeg";
     try std.testing.expect(checkFileExtName("/folder/f1.345.jpeg", expected));
@@ -229,4 +236,9 @@ test "find duplicated files" {
             try std.testing.expect(f.duplicated == null);
         } else unreachable;
     }
+}
+
+test "test get img path from json meta file path" {
+    const actual = imgFilePathFromJsonMetaFilePath("/folder1/folder2/file.jpeg.json");
+    try std.testing.expect(std.mem.eql(u8, "/folder1/folder2/file.jpeg", actual));
 }

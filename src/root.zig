@@ -35,6 +35,21 @@ fn moveFileWithStructure(allocator: mem.Allocator, root_dir: []const u8, the_dir
     }
 }
 
+pub fn moveOrphanFiles(allocator: mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
+    var files = ArrayList([]const u8).init(allocator);
+    defer files.deinit();
+
+    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var vba = std.heap.FixedBufferAllocator.init(&buffer);
+    var dir = FindOrphanWalker.init(vba.allocator(), &files, ignored_dir);
+    const walker = FindOrphanWalker.dirWalker(&dir);
+    myDir.walkDir(img_dir, walker);
+
+    for (files.items) |f| {
+        std.log.info("Moving orphan file {s} to {s}", .{ f, bin_dir });
+    }
+}
+
 pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
     var imageFiles = ArrayList(AssetFile).init(allocator);
     try walkImgDir(allocator, img_dir, ignored_dir, &imageFiles);
@@ -158,6 +173,47 @@ const DirWalkerImpl = struct {
     }
     pub fn dirWalker(self: *DirWalkerImpl) myDir.DirWalker {
         return .{ .ptr = self, .addFn = add, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored, .applyMetaInfoFn = applyMetaInfo };
+    }
+};
+
+const FindOrphanWalker = struct {
+    alloc: std.mem.Allocator,
+    ignoredDir: []const u8,
+    files: *ArrayList([]const u8),
+    pub fn init(alloc: std.mem.Allocator, files: *ArrayList([]const u8), ignoredDir: []const u8) FindOrphanWalker {
+        return .{ .alloc = alloc, .files = files, .ignoredDir = ignoredDir };
+    }
+    pub fn deinit(self: FindOrphanWalker) void {
+        for (self.files.items) |f| {
+            self.alloc.free(f);
+        }
+        self.files.deinit();
+    }
+    pub fn ifDirShouldBeIgnored(ptr: *anyopaque, dirName: []const u8) bool {
+        const self: *DirWalkerImpl = @ptrCast(@alignCast(ptr));
+        return std.mem.eql(u8, self.ignoredDir, dirName);
+    }
+    pub fn add(ptr: *anyopaque, parent_path: []const u8, name: []const u8) void {
+        const isJson = algo.isJsonFile(name);
+        if (isJson) {
+            const self: *FindOrphanWalker = @ptrCast(@alignCast(ptr));
+            const path = myDir.DirWalker.joinPath(self.alloc, parent_path, name) catch |err| {
+                std.log.err("failed to join path {s} with {s}: {s}", .{ parent_path, name, @errorName(err) });
+                return;
+            };
+            const img_path = algo.imgFilePathFromJsonMetaFilePath(path);
+            std.fs.cwd().access(img_path, .{}) catch {
+                self.files.append(path) catch |err| {
+                    std.log.err("failed to append orphan file path:{s}", .{@errorName(err)});
+                };
+            };
+        }
+    }
+    pub fn dirWalker(self: *FindOrphanWalker) myDir.DirWalker {
+        return .{ .ptr = self, .addFn = add, .ifDirShouldBeIgnoredFn = ifDirShouldBeIgnored, .applyMetaInfoFn = applyMetaInfo };
+    }
+    pub fn applyMetaInfo(ptr: *anyopaque) void {
+        _ = ptr;
     }
 };
 
