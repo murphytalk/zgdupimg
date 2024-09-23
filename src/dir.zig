@@ -51,7 +51,7 @@ const MockedDirWalker = if (builtin.is_test) struct {
 } else {};
 
 pub fn walkDir(root: []const u8, walker: DirWalker) void {
-    var buffer: [1024]u8 = undefined;
+    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var vba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = vba.allocator();
     walkDir0(alloc, root, walker);
@@ -100,6 +100,12 @@ const OpenDir = if (builtin.is_test) struct {
         return self.dir.iterate();
     }
 };
+
+pub fn ensureDir(root: []const u8, sub_dir: []const u8) !void {
+    var d = try std.fs.openDirAbsolute(root, .{});
+    defer d.close();
+    try d.makePath(sub_dir);
+}
 
 fn doWalkDir(alloc: std.mem.Allocator, walker: DirWalker, parent_path: []const u8, parentDir: OpenDir) void {
     var it = parentDir.iterate();

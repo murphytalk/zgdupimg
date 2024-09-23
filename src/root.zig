@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 const builtin = @import("builtin");
 const ArrayList = std.ArrayList;
 const testing = std.testing;
@@ -7,8 +8,34 @@ const algo = @import("algo.zig");
 const media = @import("media.zig");
 const AssetFile = media.AssetFile;
 
+fn moveFileWithStructure(allocator: mem.Allocator, root_dir: []const u8, the_dir: []const u8, dest_dir: []const u8) !void {
+    std.log.info("try to move duplicated file {s}", .{the_dir});
+    // Ensure the_dir is under root_dir
+    if (!mem.startsWith(u8, the_dir, root_dir)) {
+        return error.InvalidPath;
+    }
+
+    // Get the relative path
+    const relative_path = the_dir[root_dir.len..];
+
+    // Construct the new path
+    const new_path = try std.fs.path.join(allocator, &[_][]const u8{ dest_dir, relative_path });
+    defer allocator.free(new_path);
+
+    // Create all necessary directories
+    if (std.fs.path.dirname(relative_path)) |p| {
+        try myDir.ensureDir(dest_dir, p);
+
+        // Move the file
+        //std.log.info("moving {s} to {s}", .{ the_dir, new_path });
+        try std.fs.renameAbsolute(the_dir, new_path);
+        //std.log.info("{s} moved to {s}", .{ the_dir, new_path });
+    } else {
+        std.log.err("Failed to get dir name of {s}", .{new_path});
+    }
+}
+
 pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []const u8, bin_dir: []const u8) !void {
-    _ = bin_dir;
     var imageFiles = ArrayList(AssetFile).init(allocator);
     try walkImgDir(allocator, img_dir, ignored_dir, &imageFiles);
     std.log.info("Found {} files", .{imageFiles.items.len});
@@ -16,9 +43,12 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
 
     algo.findDuplicatedImgFiles(allocator, imageFiles);
 
+    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var vba = std.heap.FixedBufferAllocator.init(&buffer);
     for (imageFiles.items) |f| {
         if (f.duplicated) |d| {
             std.log.info("Duplicated file path: {s} , meta {any}, duplicated with {s}", .{ f.fullPath, f.meta, d });
+            try moveFileWithStructure(vba.allocator(), img_dir, f.fullPath, bin_dir);
         }
     }
     std.log.info("Total {d}", .{imageFiles.items.len});
