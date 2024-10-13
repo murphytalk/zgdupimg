@@ -9,7 +9,7 @@ const media = @import("media.zig");
 const AssetFile = media.AssetFile;
 
 fn moveFileWithStructure(allocator: mem.Allocator, root_dir: []const u8, the_dir: []const u8, dest_dir: []const u8) !void {
-    std.log.info("try to move duplicated file {s}", .{the_dir});
+    std.log.info("try to move file {s}", .{the_dir});
     // Ensure the_dir is under root_dir
     if (!mem.startsWith(u8, the_dir, root_dir)) {
         return error.InvalidPath;
@@ -39,14 +39,14 @@ pub fn moveOrphanFiles(allocator: mem.Allocator, ignored_dir: []const u8, img_di
     var files = ArrayList([]const u8).init(allocator);
     defer files.deinit();
 
-    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    var vba = std.heap.FixedBufferAllocator.init(&buffer);
-    var dir = FindOrphanWalker.init(vba.allocator(), &files, ignored_dir);
+    var dir = FindOrphanWalker.init(allocator, &files, ignored_dir);
     const walker = FindOrphanWalker.dirWalker(&dir);
     myDir.walkDir(img_dir, walker);
 
+    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var vba = std.heap.FixedBufferAllocator.init(&buffer);
     for (files.items) |f| {
-        std.log.info("Moving orphan file {s} to {s}", .{ f, bin_dir });
+        try moveFileWithStructure(vba.allocator(), img_dir, f, bin_dir);
     }
 }
 

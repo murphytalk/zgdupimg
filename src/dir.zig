@@ -37,11 +37,11 @@ const MockedDirWalker = if (builtin.is_test) struct {
     pub fn add(ptr: *anyopaque, parent_path: []const u8, name: []const u8) void {
         var self: *MockedDirWalker = @ptrCast(@alignCast(ptr));
         const path = DirWalker.joinPath(self.alloc, parent_path, name) catch |err| {
-            std.debug.print("failed to join path:{s}", .{@errorName(err)});
+            std.log.debug("failed to join path:{s}", .{@errorName(err)});
             return;
         };
         self.files.append(path) catch |err| {
-            std.debug.print("failed to add path:{s}", .{@errorName(err)});
+            std.log.debug("failed to add path:{s}", .{@errorName(err)});
         };
     }
     pub fn applyMetaInfo(_: *anyopaque) void {}
