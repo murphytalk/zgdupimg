@@ -114,6 +114,28 @@ pub inline fn isJsonFile(fileName: []const u8) bool {
     return checkFileExtName(fileName, json);
 }
 
+pub fn ifFileExists(path: []const u8) bool {
+    std.fs.accessAbsolute(path, .{}) catch return false;
+    return true;
+}
+
+pub fn jsonPathFromImgPath(alloc: std.mem.Allocator, img_file_path: []const u8) []const u8 {
+    if (std.mem.lastIndexOfScalar(u8, img_file_path, '.')) |last_dot_index| {
+        return std.mem.concat(alloc, u8, &[_][]const u8{ img_file_path[0..last_dot_index], ".json" }) catch |err| {
+            std.log.err("Failed to concat json file path: {s}", .{@errorName(err)});
+            return img_file_path;
+        };
+    }
+    return img_file_path;
+}
+
+pub fn jsonPathFromImgPath2(alloc: std.mem.Allocator, img_file_path: []const u8) []const u8 {
+    return std.mem.concat(alloc, u8, &[_][]const u8{ img_file_path, ".json" }) catch |err| {
+        std.log.err("Failed to concat json file path: {s}", .{@errorName(err)});
+        return img_file_path;
+    };
+}
+
 pub fn imgFilePathFromJsonMetaFilePath(json_path: []const u8) []const u8 {
     if (isJsonFile(json_path)) {
         return json_path[0..(json_path.len - json.len - 1)];
@@ -241,4 +263,13 @@ test "find duplicated files" {
 test "test get img path from json meta file path" {
     const actual = imgFilePathFromJsonMetaFilePath("/folder1/folder2/file.jpeg.json");
     try std.testing.expect(std.mem.eql(u8, "/folder1/folder2/file.jpeg", actual));
+}
+
+test "test get json path from img path" {
+    const actual1 = jsonPathFromImgPath(std.testing.allocator, "/folder1/folder2/file.jpeg");
+    const actual2 = jsonPathFromImgPath2(std.testing.allocator, "/folder1/folder2/file.jpeg");
+    defer std.testing.allocator.free(actual1);
+    defer std.testing.allocator.free(actual2);
+    try std.testing.expect(std.mem.eql(u8, "/folder1/folder2/file.json", actual1));
+    try std.testing.expect(std.mem.eql(u8, "/folder1/folder2/file.jpeg.json", actual2));
 }

@@ -60,10 +60,21 @@ pub fn doWork(allocator: std.mem.Allocator, ignored_dir: []const u8, img_dir: []
 
     var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var vba = std.heap.FixedBufferAllocator.init(&buffer);
+    const fixed_allocator = vba.allocator();
     for (imageFiles.items) |f| {
         if (f.duplicated) |d| {
             std.log.info("Duplicated file path: {s} , meta {any}, duplicated with {s}", .{ f.fullPath, f.meta, d });
-            try moveFileWithStructure(vba.allocator(), img_dir, f.fullPath, bin_dir);
+            try moveFileWithStructure(fixed_allocator, img_dir, f.fullPath, bin_dir);
+            const json = [_][]const u8{
+                algo.jsonPathFromImgPath(fixed_allocator, f.fullPath),
+                algo.jsonPathFromImgPath2(fixed_allocator, f.fullPath),
+            };
+            for (json) |j| {
+                if (algo.ifFileExists(j)) {
+                    try moveFileWithStructure(fixed_allocator, img_dir, j, bin_dir);
+                }
+                fixed_allocator.free(j);
+            }
         }
     }
     std.log.info("Total {d}", .{imageFiles.items.len});
